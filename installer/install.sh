@@ -508,9 +508,12 @@ sed -i -e 's|{$setup_pass}||' \
 	-e 's|{$phpcli}|/usr/bin/php|' \
 	-e 's|{$phpini}|/etc/php/7.3/cli/php.ini|' \
 	-e 's|{$crm_title}|TecArt CRM Professional - |' \
+    -e "s|\$config\['php_path'\]|\$config['data_paths']['tcucd_dir'] = '/data/crm/tcucd';\n\$config['php_path']|" \
 	/var/www/crm/config/conf.inc.php
 
-chown www-data.www-data /var/www/crm/config/conf.inc.php
+mkdir "/data/crm/tcucd"
+chown www-data.www-data "/var/www/crm/config/conf.inc.php"
+chown www-data.www-data "/data/crm/tcucd"
 
 echo "Running TecArt Software setup" >&3
 
