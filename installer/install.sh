@@ -529,3 +529,6 @@ echo ""
 echo "Installation succeeded"
 echo ""
 echo -e "\tHOST-ID: $(ip l | grep link/ether | awk '{print $2}')"
+
+echo "Please specify the passwort for the system's 'root' user:"
+/var/www/crm/tools/pw_reset root
