@@ -22,7 +22,7 @@ export PATH=$PATH:/usr/sbin
 ACTION=""
 repo_user=""
 repo_pass=""
-RELEASE=v50_73
+RELEASE=v52_80
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
@@ -167,16 +167,25 @@ apt update
 apt install -y apt-transport-https dirmngr wget pwgen debconf
 
 cat << EOL > /etc/apt/sources.list
-deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ buster main contrib non-free
-deb http://security.debian.org/debian-security buster/updates main contrib non-free
-deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ buster-updates main contrib non-free
+deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ bullseye main contrib non-free
+deb https://customer.mirror.tecart.de/security.debian.org/debian-security bullseye-security main contrib non-free
+deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ bullseye-updates main contrib non-free
 EOL
-echo 'deb https://customer.mirror.tecart.de/repo.tecart.de/apt/debian/ buster main' > /etc/apt/sources.list.d/tecart.list
-wget -O- https://repo.tecart.de/repo.tecart.de.pub | apt-key add -
+
+cat <<<EOL > /etc/apt/sources.list.d/tecart-bullseye.sources
+Types: deb
+URIs: https://customer.mirror.tecart.de/repo.tecart.de/apt/debian/
+Suites: bullseye
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
+EOL
+
+wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
 apt-get update
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-essentials-server-5.0
+apt install -y tecart-archive-keyring tecart-essentials-server-5.2
 
 echo "Configuring timezone and locale" >&3
 echo "Europe/Berlin" > /etc/timezone
