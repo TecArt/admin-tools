@@ -22,7 +22,9 @@ export PATH=$PATH:/usr/sbin
 ACTION=""
 repo_user=""
 repo_pass=""
-RELEASE=v50_73
+TECART_RELEASE="51"
+PHP_VERSION="73"
+RELEASE="v${TECART_RELEASE}_${PHP_VERSION}"
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
@@ -171,12 +173,27 @@ deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ buster main cont
 deb http://security.debian.org/debian-security buster/updates main contrib non-free
 deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ buster-updates main contrib non-free
 EOL
-echo 'deb https://customer.mirror.tecart.de/repo.tecart.de/apt/debian/ buster main' > /etc/apt/sources.list.d/tecart.list
-wget -O- https://repo.tecart.de/repo.tecart.de.pub | apt-key add -
-apt-get update
+
+cat << 'EOL' > /etc/apt/sources.list.d/tecart-buster.sources
+Types: deb
+URIs: https://repo.tecart.de/apt/debian
+Suites: buster
+Architectures: amd64
+Components: main
+Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
+EOL
+
+wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
+apt update
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-essentials-server-5.0
+apt install -y tecart-archive-keyring tecart-essentials-server-5.0
+
+echo "Configuring ImageMagick security policy"
+sed -i -E '/<policy domain="coder" rights="none" pattern="(PS|PS2|PS3|EPS|PDF|XPS)" \/>/d' /etc/ImageMagick-6/policy.xml
+
+echo "Configuring monitoring plugins"
+echo "PHP_VERSION=${PHP_VERSION}" >> /etc/default/tecart-nrpe
 
 echo "Configuring timezone and locale" >&3
 echo "Europe/Berlin" > /etc/timezone
@@ -204,7 +221,6 @@ service clamav-freshclam stop
 freshclam
 service clamav-daemon restart
 service clamav-freshclam restart
-
 
 echo "Configuring MariaDB" >&3
 MYSQLMEMORY=$(($MEMORY/10*4))
