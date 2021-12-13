@@ -417,31 +417,28 @@ MaxRequestWorkers       ${APACHE_WORKERS}
 ServerLimit ${APACHE_WORKERS}
 APACHECONF
 
+cat <<APACHECONF > /etc/apache2/conf-available/proto.conf
+Protocols h2 http/1.1
+
+SSLEngine on
+
+SSLCertificateFile    /etc/ssl/certs/ssl-cert-snakeoil.pem
+SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+
+SSLProtocol             all -SSLv3 -TLSv1 -TLSv1.1 -TLSv1.2
+SSLHonorCipherOrder     off
+SSLSessionTickets       off
+SSLCompression          off
+
+Header always set Strict-Transport-Security "max-age=63072000"
+Header always set X-Content-Type-Options nosniff
+APACHECONF
+
 cat <<APACHECONF > /etc/apache2/sites-enabled/000-default.conf
 <VirtualHost *:80>
         ServerAdmin webmaster@crmsrv
-
-        DocumentRoot /var/www/crm/
-        <Directory />
-            Options -Indexes -FollowSymLinks -MultiViews
-            AllowOverride None
-            Require all granted
-        </Directory>
-
-        <Directory /var/www/crm/data>
-            Require all denied
-        </Directory>
-
-        <Directory /var/www/crm/upload>
-            php_value upload_max_filesize 1M
-            php_value post_max_size 1M
-        </Directory>
-
-        Alias /Microsoft-Server-ActiveSync /var/www/crm/zpush/index.php
-        AliasMatch (?i)/Autodiscover/Autodiscover.xml /var/www/crm/zpush/autodiscover/autodiscover.php
-
+        Redirect permanent https://%{HTTP_HOST}%{REQUEST_URI}
         ErrorLog /var/log/apache2/error.log
-
         LogLevel error
 </VirtualHost>
 APACHECONF
@@ -451,6 +448,7 @@ cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
 <VirtualHost _default_:443>
         ServerAdmin webmaster@crmsrv
         DocumentRoot /var/www/crm/
+
         <Directory />
             Options -Indexes -FollowSymLinks -MultiViews
             AllowOverride None
@@ -472,29 +470,11 @@ cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
         ErrorLog /var/log/apache2/error.log
         LogLevel error
 
-        SSLEngine on
-
-        SSLCertificateFile    /etc/ssl/certs/ssl-cert-snakeoil.pem
-        SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
-
-        SSLCipherSuite EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH
-        SSLProtocol All -SSLv2 -SSLv3
-        SSLHonorCipherOrder On
-        Header always set Strict-Transport-Security "max-age=63072000"
-        #Header always set X-Frame-Options DENY
-        Header always set X-Content-Type-Options nosniff
-        # Requires Apache >= 2.4
-        SSLCompression off 
-        # Requires Apache >= 2.4.11
-        SSLSessionTickets Off
+        Include /etc/apache2/conf-available/proto.conf
 
         <FilesMatch "\.(cgi|shtml|phtml|php)$">
                 SSLOptions +StdEnvVars
         </FilesMatch>
-        <Directory /usr/lib/cgi-bin>
-                SSLOptions +StdEnvVars
-        </Directory>
-
 </VirtualHost>
 </IfModule>
 APACHECONF
@@ -502,7 +482,7 @@ APACHECONF
 a2enconf tecart || true
 a2dismod -f auth_basic authn_file authz_default authz_groupfile authz_user autoindex cgi deflate || true
 a2dismod -f env negotiation reqtimeout setenvif rewrite status || true
-a2enmod ssl headers || true
+a2enmod ssl headers http2 || true
 a2ensite default-ssl || true
 
 service apache2 restart
