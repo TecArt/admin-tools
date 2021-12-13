@@ -22,9 +22,7 @@ export PATH=$PATH:/usr/sbin
 ACTION=""
 repo_user=""
 repo_pass=""
-TECART_RELEASE="51"
-PHP_VERSION="73"
-RELEASE="v${TECART_RELEASE}_${PHP_VERSION}"
+RELEASE=v52_80
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
@@ -169,31 +167,36 @@ apt update
 apt install -y apt-transport-https dirmngr wget pwgen debconf
 
 cat << EOL > /etc/apt/sources.list
-deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ buster main contrib non-free
-deb http://security.debian.org/debian-security buster/updates main contrib non-free
-deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ buster-updates main contrib non-free
+deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ bullseye main contrib non-free
+deb https://customer.mirror.tecart.de/security.debian.org/debian-security bullseye-security main contrib non-free
+deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ bullseye-updates main contrib non-free
 EOL
 
-cat << 'EOL' > /etc/apt/sources.list.d/tecart-buster.sources
+cat <<<EOL > /etc/apt/sources.list.d/tecart-bullseye.sources
 Types: deb
-URIs: https://repo.tecart.de/apt/debian
-Suites: buster
-Architectures: amd64
+URIs: https://customer.mirror.tecart.de/repo.tecart.de/apt/debian/
+Suites: bullseye
 Components: main
+Architectures: amd64
 Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
 EOL
 
+cat <<<EOL > /etc/apt/sources.list.d/tecart-php8.sources
+Types: deb
+URIs: https://customer.mirror.tecart.de/packages.sury.org/php/
+Suites: bullseye
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/sury-archive-keyring.gpg
+EOL
+
 wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
-apt update
+wget -O /usr/share/keyrings/sury-archive-keyring.gpg https://packages.sury.org/php/apt.gpg
+
+apt-get update
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-archive-keyring tecart-essentials-server-5.0
-
-echo "Configuring ImageMagick security policy"
-sed -i -E '/<policy domain="coder" rights="none" pattern="(PS|PS2|PS3|EPS|PDF|XPS)" \/>/d' /etc/ImageMagick-6/policy.xml
-
-echo "Configuring monitoring plugins"
-echo "PHP_VERSION=${PHP_VERSION}" >> /etc/default/tecart-nrpe
+apt install -y tecart-archive-keyring tecart-essentials-server-5.2
 
 echo "Configuring timezone and locale" >&3
 echo "Europe/Berlin" > /etc/timezone
