@@ -439,7 +439,9 @@ APACHECONF
 cat <<APACHECONF > /etc/apache2/sites-enabled/000-default.conf
 <VirtualHost *:80>
         ServerAdmin webmaster@crmsrv
+        RewriteEngine On
         RewriteCond %{HTTPS} !=on
+        RewriteRule ^(.*)$ http://%1/$1 [R=301,L]
         LogLevel error
 </VirtualHost>
 APACHECONF
@@ -481,8 +483,9 @@ cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
 APACHECONF
 
 a2enconf tecart || true
-a2dismod -f auth_basic authn_file authz_default authz_groupfile authz_user autoindex cgi deflate || true
 a2dismod -f auth_basic authn_file authz_core authz_user autoindex cgi env \
+    negotiation reqtimeout setenvif status || true
+a2enmod ssl headers http2 || true
 a2ensite default-ssl || true
 
 service apache2 restart
