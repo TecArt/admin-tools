@@ -216,15 +216,6 @@ test -f /etc/rc.local || echo -e "#!/bin/sh\n\nfor i in \`atq | awk '{print \$1}
 grep 'atrm' /etc/rc.local || sed -i "s/exit 0/for i in \`atq | awk '{print \$1}'\`;do atrm \$i;done\n\nexit 0/" /etc/rc.local
 chmod +x /etc/rc.local
 
-echo "Configuring clamav" >&3
-sed -i -e 's:LocalSocketGroup clamav:LocalSocketGroup www-data:' -e 's:User clamav:User www-data:' /etc/clamav/clamd.conf
-sed -i -e 's:create 640  clamav adm:create 640  www-data adm:' /etc/logrotate.d/clamav-daemon
-chown www-data.clamav /var/log/clamav/clamav.log
-service clamav-freshclam stop
-freshclam
-service clamav-daemon restart
-service clamav-freshclam restart
-
 echo "Configuring MariaDB" >&3
 MYSQLMEMORY=$(($MEMORY/10*4))
 MYSQLCONNECTIONS=$(($MEMORY/5))
