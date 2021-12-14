@@ -199,6 +199,7 @@ apt-get update
 # it to be active. We'll back up the original resolv.conf for quick access.
 cp /etc/resolv.conf{,.dist}
 systemctl enable systemd-resolved.service
+systemctl start systemd-resolved.service
 
 echo "Installing dependencies. This might take a while..." >&3
 apt install -y tecart-archive-keyring tecart-essentials-server-5.2
