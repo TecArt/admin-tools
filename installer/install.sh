@@ -49,7 +49,7 @@ Options:
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
-${yll}This program is supposed to be run on a clean Debian 10 Installation. Please 
+${yll}This program is supposed to be run on a clean Debian 11 Installation. Please 
 do not run this script on a server that has already been configured for other 
 software!${rst}
 
@@ -129,15 +129,15 @@ else
 fi
 
 if [ "$repo_test" -eq 1 ] && [ "$(lsb_release -is)" == "Debian" ] && \
-    [ "$(lsb_release -rs)" = "10" ]
+    [ "$(lsb_release -rs)" = "11" ]
 then
-    echo "Enterprise repository is available and system running on Debian 10"
+    echo "Enterprise repository is available and system running on Debian 11"
     if [ "$ACTION" = "check" ]
     then
         exit 0
     fi
 else
-    echo "Could not confirm that enterprise repository is available and system running on Debian 10"
+    echo "Could not confirm that enterprise repository is available and system running on Debian 11"
     exit 1
 fi
 
