@@ -296,7 +296,9 @@ expire_logs_days        = 3
 max_binlog_size         = 1024M
  
 low_priority_updates    = 1
- 
+
+performance_schema = ON
+
 [mysqldump]
 quick
 max_allowed_packet = 64M
