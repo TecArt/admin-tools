@@ -172,23 +172,23 @@ deb https://customer.mirror.tecart.de/security.debian.org/debian-security bullse
 deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ bullseye-updates main contrib non-free
 EOL
 
-cat <<EOL > /etc/apt/sources.list.d/tecart-bullseye.sources
+cat << TECARTREPO > /etc/apt/sources.list.d/tecart-bullseye.sources
 Types: deb
 URIs: https://customer.mirror.tecart.de/repo.tecart.de/apt/debian/
 Suites: bullseye
 Components: main
 Architectures: amd64
 Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
-EOL
+TECARTREPO
 
-cat <<EOL > /etc/apt/sources.list.d/tecart-php8.sources
+cat << PHPREPO > /etc/apt/sources.list.d/tecart-php8.sources
 Types: deb
 URIs: https://customer.mirror.tecart.de/packages.sury.org/php/
 Suites: bullseye
 Components: main
 Architectures: amd64
 Signed-By: /usr/share/keyrings/sury-archive-keyring.gpg
-EOL
+PHPREPO
 
 wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
 wget -O /usr/share/keyrings/sury-archive-keyring.gpg https://packages.sury.org/php/apt.gpg
