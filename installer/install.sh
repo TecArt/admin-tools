@@ -366,7 +366,7 @@ APACHECONF
 sed -i -e 's:ServerSignature On:ServerSignature Off:' \
        -e 's:ServerTokens OS:ServerTokens Prod:' /etc/apache2/conf-enabled/security.conf
 
-a2enmod php7.3 || true
+a2enmod php8.0 || true
 systemctl daemon-reload
 service apache2 restart
 
@@ -498,7 +498,7 @@ sed -i -e 's|{$setup_pass}||' \
 	-e 's|{$memcache}|unix:///run/memcached/memcached.sock:0|' \
 	-e 's|{$dataroot}|/data/crm|' \
 	-e 's|{$phpcli}|/usr/bin/php|' \
-	-e 's|{$phpini}|/etc/php/7.3/cli/php.ini|' \
+	-e 's|{$phpini}|/etc/php/8.0/cli/php.ini|' \
 	-e 's|{$crm_title}|TecArt CRM Professional - |' \
 	-e "s|\$config\['php_path'\]|\$config['data_paths']['tcucd_dir'] = '/data/crm/tcucd';\n\$config['php_path']|" \
 	/var/www/crm/config/conf.inc.php
