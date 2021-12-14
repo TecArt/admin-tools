@@ -195,8 +195,16 @@ wget -O /usr/share/keyrings/sury-archive-keyring.gpg https://packages.sury.org/p
 
 apt-get update
 
+# Debian installs without systemd-resolved enabled but some packages require
+# it to be active. We'll back up the original resolv.conf for quick access.
+cp /etc/resolv.conf{,.dist}
+systemctl enable systemd-resolved.service
+
 echo "Installing dependencies. This might take a while..." >&3
 apt install -y tecart-archive-keyring tecart-essentials-server-5.2
+
+# Restore the resolv.conf in case the systemd resolver didn't work fast enough
+cp /etc/resolv.conf{.dist,}
 
 echo "Configuring timezone and locale" >&3
 echo "Europe/Berlin" > /etc/timezone
