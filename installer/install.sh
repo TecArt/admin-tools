@@ -439,8 +439,7 @@ APACHECONF
 cat <<APACHECONF > /etc/apache2/sites-enabled/000-default.conf
 <VirtualHost *:80>
         ServerAdmin webmaster@crmsrv
-        Redirect permanent https://%{HTTP_HOST}%{REQUEST_URI}
-        ErrorLog /var/log/apache2/error.log
+        RewriteCond %{HTTPS} !=on
         LogLevel error
 </VirtualHost>
 APACHECONF
@@ -483,8 +482,7 @@ APACHECONF
 
 a2enconf tecart || true
 a2dismod -f auth_basic authn_file authz_default authz_groupfile authz_user autoindex cgi deflate || true
-a2dismod -f env negotiation reqtimeout setenvif rewrite status || true
-a2enmod ssl headers http2 || true
+a2dismod -f auth_basic authn_file authz_core authz_user autoindex cgi env \
 a2ensite default-ssl || true
 
 service apache2 restart
