@@ -22,6 +22,7 @@ export PATH=$PATH:/usr/sbin
 ACTION=""
 repo_user=""
 repo_pass=""
+production_repo="true"
 RELEASE=v52_80
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
@@ -39,13 +40,14 @@ usage() {
     local yll='\e[33m'
     local rst='\e[39m'
     echo -e "$(cat << EOF
-Usage: $PROGNAME [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] (check|install)
+Usage: $PROGNAME [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] [--no-production-repo] (check|install)
 
 Options:
--h, --help            Display this usage message and exit
-    --repo-user       Username for the Enterprise Repositories
-    --repo-pass       Password for the Enterprise Repositories
--l, --log-path [DIR]  Write logs into given directory
+-h, --help                  Display this usage message and exit
+    --repo-user             Username for the Enterprise Repositories
+    --repo-pass             Password for the Enterprise Repositories
+-l, --log-path [DIR]        Write logs into given directory
+    --no-production-repo    Force the use of untested repositories
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
@@ -74,6 +76,10 @@ while [ $# -gt 0 ] ; do
         ;;
     -l|--log-path)
         LOG_PATH="$2"
+        shift
+        ;;
+    --no-production-repo)
+        production_repo="false"
         shift
         ;;
     -*)
@@ -120,9 +126,13 @@ fi
 # TODO: Ask for proxy settings
 
 repo_test=0
-if ! wget -q -O/dev/null https://${repo_user}:${repo_pass}@customer.mirror.tecart.de/
+if [ "$production_repo" = "true" ] && ! wget -q -O/dev/null https://${repo_user}:${repo_pass}@customer.mirror.tecart.de/
 then
-    echo "Could not connect to TecArt Enterprise Repository"
+    echo "Could not connect to TecArt Enterprise Mirrors"
+    exit 1
+elif [ "$production_repo" = "false" ] && ! wget -q -O/dev/null https://mirror.tecart.de/
+then
+    echo "Could not connect to Free TecArt Mirrors"
     exit 1
 else
     repo_test=1
@@ -131,13 +141,13 @@ fi
 if [ "$repo_test" -eq 1 ] && [ "$(lsb_release -is)" == "Debian" ] && \
     [ "$(lsb_release -rs)" = "11" ]
 then
-    echo "Enterprise repository is available and system running on Debian 11"
+    echo "Mirror is available and system running on Debian 11"
     if [ "$ACTION" = "check" ]
     then
         exit 0
     fi
 else
-    echo "Could not confirm that enterprise repository is available and system running on Debian 11"
+    echo "Could not confirm that mirros is available and system running on Debian 11"
     exit 1
 fi
 
@@ -157,24 +167,28 @@ fi
 echo "Debug log will be written in $LOG_PATH" >&3
 echo "Updating apt config" >&3
 
+mirror_host="mirror.tecart.de"
+if [ "$production_repo" = "true" ]; then
+mirror_host="customer.mirror.tecart.de"
 cat << EOL > /etc/apt/auth.conf.d/tecart.conf
 machine customer.mirror.tecart.de
  login ${repo_user}
  password ${repo_pass}
 EOL
+fi
 
 apt update
 apt install -y apt-transport-https dirmngr wget pwgen debconf
 
 cat << EOL > /etc/apt/sources.list
-deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ bullseye main contrib non-free
-deb https://customer.mirror.tecart.de/security.debian.org/debian-security bullseye-security main contrib non-free
-deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ bullseye-updates main contrib non-free
+deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye main contrib non-free
+deb https://${mirror_host}/security.debian.org/debian-security bullseye-security main contrib non-free
+deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye-updates main contrib non-free
 EOL
 
 cat << TECARTREPO > /etc/apt/sources.list.d/tecart-bullseye.sources
 Types: deb
-URIs: https://customer.mirror.tecart.de/repo.tecart.de/apt/debian/
+URIs: https://${mirror_host}/repo.tecart.de/apt/debian/
 Suites: bullseye
 Components: main
 Architectures: amd64
@@ -183,7 +197,7 @@ TECARTREPO
 
 cat << PHPREPO > /etc/apt/sources.list.d/tecart-php8.sources
 Types: deb
-URIs: https://customer.mirror.tecart.de/packages.sury.org/php/
+URIs: https://${mirror_host}/packages.sury.org/php/
 Suites: bullseye
 Components: main
 Architectures: amd64
