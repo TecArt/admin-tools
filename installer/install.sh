@@ -80,7 +80,6 @@ while [ $# -gt 0 ] ; do
         ;;
     --no-production-repo)
         production_repo="false"
-        shift
         ;;
     -*)
         usage "Unknown option '$1'"
@@ -113,12 +112,12 @@ then
     die "It looks like this installer ran already!"
 fi
 
-if [ -z "$repo_user" ]
+if [ -z "$repo_user" ] && [ "$production_repo" = "true" ]
 then
     read -p "TecArt Enterprise Repository User: " repo_user 1>&3
 fi
 
-if [ -z "$repo_pass" ]
+if [ -z "$repo_pass" ] && [ "$production_repo" = "true" ]
 then
     read -p "TecArt Enterprise Repository Password: " repo_pass
 fi
