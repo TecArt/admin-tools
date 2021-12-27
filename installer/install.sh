@@ -229,6 +229,9 @@ echo 'LANG="de_DE.UTF-8"'>/etc/default/locale
 dpkg-reconfigure --frontend=noninteractive locales
 update-locale LANG=de_DE.UTF-8
 
+# This is needed so www-data can run resource-limited scripts via systemd-run
+loginctl enable-linger www-data
+
 echo "Updating system settings" >&3
 echo 'vm.swappiness=0' >> /etc/sysctl.d/90-tecart.conf
 
