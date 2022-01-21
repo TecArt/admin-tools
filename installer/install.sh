@@ -285,13 +285,11 @@ max_connect_errors     = 10000000
  
 join_buffer_size       = 1M
  
-# ACHTUNG: Bei grossen Lasten sollte der Query Cache mit 
-# 'query_cache_size = 0' deaktiviert werden
-query_cache_limit      = 4M                 # Max. Grösse eines gecacheten 
-                                            # Queries
-query_cache_size       = 128M               # Gesamtgrösse des Querycaches
-                                            # ~5 - 10% des RAM, maximal 128M
-query_cache_type       = 1
+# Query cache is disabled by default as the overhead it imposes
+# outweighs any benefits gained by it by far
+query_cache_size       = 0
+query_cache_type       = 0
+
 query_prealloc_size    = 16384
 query_alloc_block_size = 16384
  
