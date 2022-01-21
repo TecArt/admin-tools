@@ -294,7 +294,7 @@ query_prealloc_size    = 16384
 query_alloc_block_size = 16384
  
 # INNODB PERFORMANCE
-innodb_buffer_pool_size         = $MYSQLMEMORY        # Maximal ~40% des RAM
+innodb_buffer_pool_size         = ${MYSQLMEMORY}M        # Maximal ~40% des RAM
 innodb_log_buffer_size          = 8M
 innodb_log_file_size            = 256M      # Nach Änderung dieses Wertes
                                             # müssen die alten logfiles 
