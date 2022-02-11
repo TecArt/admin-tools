@@ -247,14 +247,14 @@ MYSQLCONNECTIONS=$(($MEMORY/5))
 
 cat <<MYSQLCONF > /etc/mysql/mariadb.conf.d/tecart.cnf
 [client]
-default-character-set = utf8
+default-character-set = utf8mb4
  
 [mysqld]
 tmpdir = /data/tmp/
-character-set-server  = utf8
-collation-server      = utf8_general_ci
-character_set_server   = utf8
-collation_server       = utf8_general_ci
+character-set-server  = utf8mb4
+collation-server      = utf8mb4_general_ci
+character_set_server   = utf8mb4
+collation_server       = utf8mb4_general_ci
  
 skip-external-locking
 skip-name-resolve
