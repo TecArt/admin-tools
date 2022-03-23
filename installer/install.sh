@@ -22,9 +22,8 @@ export PATH=$PATH:/usr/sbin
 ACTION=""
 repo_user=""
 repo_pass=""
-TECART_RELEASE="51"
-PHP_VERSION="73"
-RELEASE="v${TECART_RELEASE}_${PHP_VERSION}"
+production_repo="true"
+RELEASE=v52_80
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
@@ -41,17 +40,18 @@ usage() {
     local yll='\e[33m'
     local rst='\e[39m'
     echo -e "$(cat << EOF
-Usage: $PROGNAME [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] (check|install)
+Usage: $PROGNAME [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] [--no-production-repo] (check|install)
 
 Options:
--h, --help            Display this usage message and exit
-    --repo-user       Username for the Enterprise Repositories
-    --repo-pass       Password for the Enterprise Repositories
--l, --log-path [DIR]  Write logs into given directory
+-h, --help                  Display this usage message and exit
+    --repo-user             Username for the Enterprise Repositories
+    --repo-pass             Password for the Enterprise Repositories
+-l, --log-path [DIR]        Write logs into given directory
+    --no-production-repo    Force the use of untested repositories
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
-${yll}This program is supposed to be run on a clean Debian 10 Installation. Please 
+${yll}This program is supposed to be run on a clean Debian 11 Installation. Please 
 do not run this script on a server that has already been configured for other 
 software!${rst}
 
@@ -77,6 +77,9 @@ while [ $# -gt 0 ] ; do
     -l|--log-path)
         LOG_PATH="$2"
         shift
+        ;;
+    --no-production-repo)
+        production_repo="false"
         ;;
     -*)
         usage "Unknown option '$1'"
@@ -109,12 +112,12 @@ then
     die "It looks like this installer ran already!"
 fi
 
-if [ -z "$repo_user" ]
+if [ -z "$repo_user" ] && [ "$production_repo" = "true" ]
 then
     read -p "TecArt Enterprise Repository User: " repo_user 1>&3
 fi
 
-if [ -z "$repo_pass" ]
+if [ -z "$repo_pass" ] && [ "$production_repo" = "true" ]
 then
     read -p "TecArt Enterprise Repository Password: " repo_pass
 fi
@@ -122,24 +125,28 @@ fi
 # TODO: Ask for proxy settings
 
 repo_test=0
-if ! wget -q -O/dev/null https://${repo_user}:${repo_pass}@customer.mirror.tecart.de/
+if [ "$production_repo" = "true" ] && ! wget -q -O/dev/null https://${repo_user}:${repo_pass}@customer.mirror.tecart.de/
 then
-    echo "Could not connect to TecArt Enterprise Repository"
+    echo "Could not connect to TecArt Enterprise Mirrors"
+    exit 1
+elif [ "$production_repo" = "false" ] && ! wget -q -O/dev/null https://mirror.tecart.de/
+then
+    echo "Could not connect to Free TecArt Mirrors"
     exit 1
 else
     repo_test=1
 fi
 
 if [ "$repo_test" -eq 1 ] && [ "$(lsb_release -is)" == "Debian" ] && \
-    [ "$(lsb_release -rs)" = "10" ]
+    [ "$(lsb_release -rs)" = "11" ]
 then
-    echo "Enterprise repository is available and system running on Debian 10"
+    echo "Mirror is available and system running on Debian 11"
     if [ "$ACTION" = "check" ]
     then
         exit 0
     fi
 else
-    echo "Could not confirm that enterprise repository is available and system running on Debian 10"
+    echo "Could not confirm that mirros is available and system running on Debian 11"
     exit 1
 fi
 
@@ -159,41 +166,59 @@ fi
 echo "Debug log will be written in $LOG_PATH" >&3
 echo "Updating apt config" >&3
 
+mirror_host="mirror.tecart.de"
+if [ "$production_repo" = "true" ]; then
+mirror_host="customer.mirror.tecart.de"
 cat << EOL > /etc/apt/auth.conf.d/tecart.conf
 machine customer.mirror.tecart.de
  login ${repo_user}
  password ${repo_pass}
 EOL
+fi
 
 apt update
 apt install -y apt-transport-https dirmngr wget pwgen debconf
 
 cat << EOL > /etc/apt/sources.list
-deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ buster main contrib non-free
-deb http://security.debian.org/debian-security buster/updates main contrib non-free
-deb https://customer.mirror.tecart.de/ftp.de.debian.org/debian/ buster-updates main contrib non-free
+deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye main contrib non-free
+deb https://${mirror_host}/security.debian.org/debian-security bullseye-security main contrib non-free
+deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye-updates main contrib non-free
 EOL
 
-cat << 'EOL' > /etc/apt/sources.list.d/tecart-buster.sources
+cat << TECARTREPO > /etc/apt/sources.list.d/tecart-bullseye.sources
 Types: deb
-URIs: https://repo.tecart.de/apt/debian
-Suites: buster
-Architectures: amd64
+URIs: https://${mirror_host}/repo.tecart.de/apt/debian/
+Suites: bullseye
 Components: main
+Architectures: amd64
 Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
-EOL
+TECARTREPO
+
+cat << PHPREPO > /etc/apt/sources.list.d/tecart-php8.sources
+Types: deb
+URIs: https://${mirror_host}/packages.sury.org/php/
+Suites: bullseye
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/sury-archive-keyring.gpg
+PHPREPO
 
 wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
-apt update
+wget -O /usr/share/keyrings/sury-archive-keyring.gpg https://packages.sury.org/php/apt.gpg
+
+apt-get update
+
+# Debian installs without systemd-resolved enabled but some packages require
+# it to be active. We'll back up the original resolv.conf for quick access.
+cp /etc/resolv.conf{,.dist}
+systemctl enable systemd-resolved.service
+systemctl start systemd-resolved.service
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-archive-keyring tecart-essentials-server-5.0
+apt install -y tecart-archive-keyring tecart-essentials-server-5.2
 
-echo "Configuring ImageMagick security policy"
-sed -i -E '/<policy domain="coder" rights="none" pattern="(PS|PS2|PS3|EPS|PDF|XPS)" \/>/d' /etc/ImageMagick-6/policy.xml
-
-echo "Configuring monitoring plugins"
-echo "PHP_VERSION=${PHP_VERSION}" >> /etc/default/tecart-nrpe
+# Restore the resolv.conf in case the systemd resolver didn't work fast enough
+cp /etc/resolv.conf{.dist,}
 
 echo "Configuring timezone and locale" >&3
 echo "Europe/Berlin" > /etc/timezone
@@ -204,6 +229,9 @@ echo 'LANG="de_DE.UTF-8"'>/etc/default/locale
 dpkg-reconfigure --frontend=noninteractive locales
 update-locale LANG=de_DE.UTF-8
 
+# This is needed so www-data can run resource-limited scripts via systemd-run
+loginctl enable-linger www-data
+
 echo "Updating system settings" >&3
 echo 'vm.swappiness=0' >> /etc/sysctl.d/90-tecart.conf
 
@@ -213,29 +241,20 @@ test -f /etc/rc.local || echo -e "#!/bin/sh\n\nfor i in \`atq | awk '{print \$1}
 grep 'atrm' /etc/rc.local || sed -i "s/exit 0/for i in \`atq | awk '{print \$1}'\`;do atrm \$i;done\n\nexit 0/" /etc/rc.local
 chmod +x /etc/rc.local
 
-echo "Configuring clamav" >&3
-sed -i -e 's:LocalSocketGroup clamav:LocalSocketGroup www-data:' -e 's:User clamav:User www-data:' /etc/clamav/clamd.conf
-sed -i -e 's:create 640  clamav adm:create 640  www-data adm:' /etc/logrotate.d/clamav-daemon
-chown www-data.clamav /var/log/clamav/clamav.log
-service clamav-freshclam stop
-freshclam
-service clamav-daemon restart
-service clamav-freshclam restart
-
 echo "Configuring MariaDB" >&3
 MYSQLMEMORY=$(($MEMORY/10*4))
 MYSQLCONNECTIONS=$(($MEMORY/5))
 
 cat <<MYSQLCONF > /etc/mysql/mariadb.conf.d/tecart.cnf
 [client]
-default-character-set = utf8
+default-character-set = utf8mb4
  
 [mysqld]
 tmpdir = /data/tmp/
-character-set-server  = utf8
-collation-server      = utf8_general_ci
-character_set_server   = utf8
-collation_server       = utf8_general_ci
+character-set-server  = utf8mb4
+collation-server      = utf8mb4_general_ci
+character_set_server   = utf8mb4
+collation_server       = utf8mb4_general_ci
  
 skip-external-locking
 skip-name-resolve
@@ -266,18 +285,16 @@ max_connect_errors     = 10000000
  
 join_buffer_size       = 1M
  
-# ACHTUNG: Bei grossen Lasten sollte der Query Cache mit 
-# 'query_cache_size = 0' deaktiviert werden
-query_cache_limit      = 4M                 # Max. Grösse eines gecacheten 
-                                            # Queries
-query_cache_size       = 128M               # Gesamtgrösse des Querycaches
-                                            # ~5 - 10% des RAM, maximal 128M
-query_cache_type       = 1
+# Query cache is disabled by default as the overhead it imposes
+# outweighs any benefits gained by it by far
+query_cache_size       = 0
+query_cache_type       = 0
+
 query_prealloc_size    = 16384
 query_alloc_block_size = 16384
  
 # INNODB PERFORMANCE
-innodb_buffer_pool_size         = $MYSQLMEMORY        # Maximal ~40% des RAM
+innodb_buffer_pool_size         = ${MYSQLMEMORY}M        # Maximal ~40% des RAM
 innodb_log_buffer_size          = 8M
 innodb_log_file_size            = 256M      # Nach Änderung dieses Wertes
                                             # müssen die alten logfiles 
@@ -302,7 +319,9 @@ expire_logs_days        = 3
 max_binlog_size         = 1024M
  
 low_priority_updates    = 1
- 
+
+performance_schema = ON
+
 [mysqldump]
 quick
 max_allowed_packet = 64M
@@ -372,7 +391,7 @@ APACHECONF
 sed -i -e 's:ServerSignature On:ServerSignature Off:' \
        -e 's:ServerTokens OS:ServerTokens Prod:' /etc/apache2/conf-enabled/security.conf
 
-a2enmod php7.3 || true
+a2enmod php8.0 || true
 systemctl daemon-reload
 service apache2 restart
 
@@ -412,31 +431,29 @@ MaxRequestWorkers       ${APACHE_WORKERS}
 ServerLimit ${APACHE_WORKERS}
 APACHECONF
 
+cat <<APACHECONF > /etc/apache2/conf-available/proto.conf
+Protocols h2 http/1.1
+
+SSLEngine on
+
+SSLCertificateFile    /etc/ssl/certs/ssl-cert-snakeoil.pem
+SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+
+SSLProtocol             all -SSLv3 -TLSv1 -TLSv1.1 -TLSv1.2
+SSLHonorCipherOrder     off
+SSLSessionTickets       off
+SSLCompression          off
+
+Header always set Strict-Transport-Security "max-age=63072000"
+Header always set X-Content-Type-Options nosniff
+APACHECONF
+
 cat <<APACHECONF > /etc/apache2/sites-enabled/000-default.conf
 <VirtualHost *:80>
         ServerAdmin webmaster@crmsrv
-
-        DocumentRoot /var/www/crm/
-        <Directory />
-            Options -Indexes -FollowSymLinks -MultiViews
-            AllowOverride None
-            Require all granted
-        </Directory>
-
-        <Directory /var/www/crm/data>
-            Require all denied
-        </Directory>
-
-        <Directory /var/www/crm/upload>
-            php_value upload_max_filesize 1M
-            php_value post_max_size 1M
-        </Directory>
-
-        Alias /Microsoft-Server-ActiveSync /var/www/crm/zpush/index.php
-        AliasMatch (?i)/Autodiscover/Autodiscover.xml /var/www/crm/zpush/autodiscover/autodiscover.php
-
-        ErrorLog /var/log/apache2/error.log
-
+        RewriteEngine On
+        RewriteCond %{HTTPS} !=on
+        RewriteRule ^(.*)$ http://%1/\$1 [R=301,L]
         LogLevel error
 </VirtualHost>
 APACHECONF
@@ -446,6 +463,7 @@ cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
 <VirtualHost _default_:443>
         ServerAdmin webmaster@crmsrv
         DocumentRoot /var/www/crm/
+
         <Directory />
             Options -Indexes -FollowSymLinks -MultiViews
             AllowOverride None
@@ -467,37 +485,19 @@ cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
         ErrorLog /var/log/apache2/error.log
         LogLevel error
 
-        SSLEngine on
-
-        SSLCertificateFile    /etc/ssl/certs/ssl-cert-snakeoil.pem
-        SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
-
-        SSLCipherSuite EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH
-        SSLProtocol All -SSLv2 -SSLv3
-        SSLHonorCipherOrder On
-        Header always set Strict-Transport-Security "max-age=63072000"
-        #Header always set X-Frame-Options DENY
-        Header always set X-Content-Type-Options nosniff
-        # Requires Apache >= 2.4
-        SSLCompression off 
-        # Requires Apache >= 2.4.11
-        SSLSessionTickets Off
+        Include /etc/apache2/conf-available/proto.conf
 
         <FilesMatch "\.(cgi|shtml|phtml|php)$">
                 SSLOptions +StdEnvVars
         </FilesMatch>
-        <Directory /usr/lib/cgi-bin>
-                SSLOptions +StdEnvVars
-        </Directory>
-
 </VirtualHost>
 </IfModule>
 APACHECONF
 
 a2enconf tecart || true
-a2dismod -f auth_basic authn_file authz_default authz_groupfile authz_user autoindex cgi deflate || true
-a2dismod -f env negotiation reqtimeout setenvif rewrite status || true
-a2enmod ssl headers || true
+a2dismod -f auth_basic authn_file authz_user autoindex cgi env \
+    negotiation reqtimeout setenvif status || true
+a2enmod ssl headers rewrite http2 || true
 a2ensite default-ssl || true
 
 service apache2 restart
@@ -522,7 +522,7 @@ sed -i -e 's|{$setup_pass}||' \
 	-e 's|{$memcache}|unix:///run/memcached/memcached.sock:0|' \
 	-e 's|{$dataroot}|/data/crm|' \
 	-e 's|{$phpcli}|/usr/bin/php|' \
-	-e 's|{$phpini}|/etc/php/7.3/cli/php.ini|' \
+	-e 's|{$phpini}|/etc/php/8.0/cli/php.ini|' \
 	-e 's|{$crm_title}|TecArt CRM Professional - |' \
 	-e "s|\$config\['php_path'\]|\$config['data_paths']['tcucd_dir'] = '/data/crm/tcucd';\n\$config['php_path']|" \
 	/var/www/crm/config/conf.inc.php
