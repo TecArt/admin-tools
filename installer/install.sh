@@ -395,8 +395,6 @@ a2enmod php8.0 || true
 systemctl daemon-reload
 service apache2 restart
 
-sed -i -E '/<policy domain="coder" rights="none" pattern="(PS|PS2|PS3|EPS|PDF|XPS)" \/>/d' /etc/ImageMagick-6/policy.xml
-
 echo "Downloading latest TecArt Software release" >&3
 
 cd /usr/src
