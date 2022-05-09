@@ -395,6 +395,9 @@ a2enmod php8.0 || true
 systemctl daemon-reload
 service apache2 restart
 
+echo "Configuring alternatives: php" >&3
+update-alternatives --set php /usr/bin/php8.0 || true
+
 echo "Downloading latest TecArt Software release" >&3
 
 cd /usr/src
