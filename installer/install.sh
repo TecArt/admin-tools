@@ -177,7 +177,7 @@ EOL
 fi
 
 apt update
-apt install -y apt-transport-https dirmngr wget pwgen debconf
+apt install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert
 
 cat << EOL > /etc/apt/sources.list
 deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye main contrib non-free
@@ -379,6 +379,9 @@ MEMCACHEDCONF
 echo -en "-d\n-m $((${MEMORY}/32*4))\n-u www-data\n-s /run/memcached/memcached.sock" > /etc/memcached.conf
 systemctl daemon-reload
 service memcached restart
+
+echo "Generating snakeoil certificate" >&3
+/usr/sbin/make-ssl-cert generate-default-snakeoil || true
 
 echo "Configuring apache2" >&3
 
