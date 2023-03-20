@@ -2,11 +2,11 @@
 #
 # Installer for the TecArt Business Software and all of it's dependencies.
 #
-# This program is supposed to be run on a clean Debian 10 Installation. Please 
+# This program is supposed to be run on a clean Debian 11 Installation. Please
 # do not run this script on a server that has already been configured for other 
 # software!
 #
-# Copyright (c) by TecArt GmbH, 2021
+# Copyright (c) by TecArt GmbH, 2023
 
 set -euo pipefail
 exec 4>&2
@@ -23,7 +23,7 @@ ACTION=""
 repo_user=""
 repo_pass=""
 production_repo="true"
-RELEASE=v52_80
+RELEASE=v53_80
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
@@ -55,7 +55,7 @@ ${yll}This program is supposed to be run on a clean Debian 11 Installation. Plea
 do not run this script on a server that has already been configured for other 
 software!${rst}
 
-Copyright (c) by TecArt GmbH, 2021
+Copyright (c) by TecArt GmbH, 2023
 EOF
 )"
     exit 1
@@ -544,7 +544,7 @@ sudo -u www-data ./setup
 
 } >"${LOG_PATH}/tecart-install.log" 2>"${LOG_PATH}/tecart-install.err"
 
-echo "5.0" > /etc/tecart-installer-version
+echo "5.3" > /etc/tecart-installer-version
 
 echo ""
 echo ""
