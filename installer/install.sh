@@ -107,7 +107,7 @@ then
     exit 1
 fi
 
-if [ -f "/etc/tecart-installer-version" ] && [ "$(wc -c /etc/tecart-installer-version)" -gt 0 ]
+if [ -f "/etc/tecart-installer-version" ] && [ "$(wc -c /etc/tecart-installer-version | awk '{print $1}')" -gt 0 ]
 then
     die "It looks like this installer ran already!"
 fi
