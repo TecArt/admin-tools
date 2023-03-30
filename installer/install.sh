@@ -23,7 +23,7 @@ ACTION=""
 repo_user=""
 repo_pass=""
 production_repo="true"
-RELEASE=v54_80
+RELEASE=v54_82
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
