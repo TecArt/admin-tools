@@ -544,7 +544,7 @@ sudo -u www-data ./setup
 
 } >"${LOG_PATH}/tecart-install.log" 2>"${LOG_PATH}/tecart-install.err"
 
-echo "5.3" > /etc/tecart-installer-version
+echo "5.4" > /etc/tecart-installer-version
 
 echo ""
 echo ""
