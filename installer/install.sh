@@ -23,7 +23,7 @@ ACTION=""
 repo_user=""
 repo_pass=""
 production_repo="true"
-RELEASE=v53_80
+RELEASE=v54_80
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
@@ -215,7 +215,7 @@ systemctl enable systemd-resolved.service
 systemctl start systemd-resolved.service
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-archive-keyring tecart-essentials-server-5.2
+apt install -y tecart-archive-keyring tecart-essentials-server-5.4
 
 # Restore the resolv.conf in case the systemd resolver didn't work fast enough
 cp /etc/resolv.conf{.dist,}
