@@ -394,12 +394,12 @@ APACHECONF
 sed -i -e 's:ServerSignature On:ServerSignature Off:' \
        -e 's:ServerTokens OS:ServerTokens Prod:' /etc/apache2/conf-enabled/security.conf
 
-a2enmod php8.0 || true
+a2enmod php8.2 || true
 systemctl daemon-reload
 service apache2 restart
 
 echo "Configuring alternatives: php" >&3
-update-alternatives --set php /usr/bin/php8.0 || true
+update-alternatives --set php /usr/bin/php8.2 || true
 
 echo "Downloading latest TecArt Software release" >&3
 
