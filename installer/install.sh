@@ -215,7 +215,7 @@ systemctl enable systemd-resolved.service
 systemctl start systemd-resolved.service
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-archive-keyring tecart-essentials-server-5.2
+apt install -y tecart-archive-keyring tecart-essentials-server-5.3
 
 # Restore the resolv.conf in case the systemd resolver didn't work fast enough
 cp /etc/resolv.conf{.dist,}
