@@ -459,7 +459,7 @@ cat <<APACHECONF > /etc/apache2/sites-enabled/000-default.conf
         ServerAdmin webmaster@crmsrv
         RewriteEngine On
         RewriteCond %{HTTPS} !=on
-        RewriteRule ^(.*)$ http://%1/\$1 [R=301,L]
+        RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
         LogLevel error
 </VirtualHost>
 APACHECONF
