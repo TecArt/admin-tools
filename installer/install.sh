@@ -2,7 +2,7 @@
 #
 # Installer for the TecArt Business Software and all of it's dependencies.
 #
-# This program is supposed to be run on a clean Debian 11 Installation. Please
+# This program is supposed to be run on a clean Debian 12 Installation. Please
 # do not run this script on a server that has already been configured for other 
 # software!
 #
@@ -51,7 +51,7 @@ Options:
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
-${yll}This program is supposed to be run on a clean Debian 11 Installation. Please 
+${yll}This program is supposed to be run on a clean Debian 12 Installation. Please 
 do not run this script on a server that has already been configured for other 
 software!${rst}
 
@@ -138,15 +138,15 @@ else
 fi
 
 if [ "$repo_test" -eq 1 ] && [ "$(lsb_release -is)" == "Debian" ] && \
-    [ "$(lsb_release -rs)" = "11" ]
+    [ "$(lsb_release -rs)" = "12" ]
 then
-    echo "Mirror is available and system running on Debian 11"
+    echo "Mirror is available and system running on Debian 12"
     if [ "$ACTION" = "check" ]
     then
         exit 0
     fi
 else
-    echo "Could not confirm that mirros is available and system running on Debian 11"
+    echo "Could not confirm that mirros is available and system running on Debian 12"
     exit 1
 fi
 
@@ -180,31 +180,21 @@ apt update
 apt install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert
 
 cat << EOL > /etc/apt/sources.list
-deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye main contrib non-free
-deb https://${mirror_host}/security.debian.org/debian-security bullseye-security main contrib non-free
-deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye-updates main contrib non-free
+deb https://${mirror_host}/ftp.de.debian.org/debian/ bookworm main contrib non-free non-free-firmware
+deb https://${mirror_host}/security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+deb https://${mirror_host}/ftp.de.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
 EOL
 
-cat << TECARTREPO > /etc/apt/sources.list.d/tecart-bullseye.sources
+cat << TECARTREPO > /etc/apt/sources.list.d/tecart-bookworm.sources
 Types: deb
 URIs: https://${mirror_host}/repo.tecart.de/apt/debian/
-Suites: bullseye
+Suites: bookworm
 Components: main
 Architectures: amd64
 Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
 TECARTREPO
 
-cat << PHPREPO > /etc/apt/sources.list.d/tecart-php8.sources
-Types: deb
-URIs: https://${mirror_host}/packages.sury.org/php/
-Suites: bullseye
-Components: main
-Architectures: amd64
-Signed-By: /usr/share/keyrings/sury-archive-keyring.gpg
-PHPREPO
-
 wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
-wget -O /usr/share/keyrings/sury-archive-keyring.gpg https://packages.sury.org/php/apt.gpg
 
 apt-get update
 
