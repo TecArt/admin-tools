@@ -211,7 +211,7 @@ systemctl enable systemd-resolved.service
 systemctl start systemd-resolved.service
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-archive-keyring tecart-essentials-server-5.4
+apt install -y tecart-archive-keyring redis-server tecart-essentials-server-5.4
 
 # Restore the resolv.conf in case the systemd resolver didn't work fast enough
 cp /etc/resolv.conf{.dist,}
@@ -362,19 +362,13 @@ mysql -e "GRANT ALL PRIVILEGES ON tecart.* TO 'tecart'@'localhost';"
 mysql -e "FLUSH PRIVILEGES;"
 
 
-echo "Configuring memcached" >&3
+echo "Configuring redis" >&3
 
-mkdir -p /etc/systemd/system/memcached.service.d/
-cat <<MEMCACHEDCONF > /etc/systemd/system/memcached.service.d/override.conf
-[Service]
-PermissionsStartOnly=true
-ExecStartPre=/usr/bin/install -d -g www-data -o www-data -m 1755 -v /run/memcached
-ExecStopPost=/bin/rm -rf /run/memcached
-MEMCACHEDCONF
 
-echo -en "-d\n-m $((${MEMORY}/32*4))\n-u www-data\n-s /run/memcached/memcached.sock" > /etc/memcached.conf
-systemctl daemon-reload
-service memcached restart
+echo "maxmemory $((${MEMORY}/32*4))mb" >> /etc/redis/redis.conf
+echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf
+
+systemctl enable --now redis-server
 
 echo "Generating snakeoil certificate" >&3
 /usr/sbin/make-ssl-cert generate-default-snakeoil || true
@@ -521,7 +515,8 @@ sed -i -e 's|{$setup_pass}||' \
 	-e "s|{\$dbuser}|$MYSQLUSER_B64|" \
 	-e "s|{\$dbpass}|$MYSQLPASS_B64|" \
 	-e 's|{$dbhost}|localhost|' \
-	-e 's|{$memcache}|unix:///run/memcached/memcached.sock:0|' \
+	-e 's|{$memcache}|127.0.0.1:6379|' \
+	-e 's|mem_cache_d|redis|' \
 	-e 's|{$dataroot}|/data/crm|' \
 	-e 's|{$phpcli}|/usr/bin/php|' \
 	-e 's|{$phpini}|/etc/php/8.2/cli/php.ini|' \
