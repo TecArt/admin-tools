@@ -112,6 +112,12 @@ then
     die "It looks like this installer ran already!"
 fi
 
+DEB_ARCH="$(dpkg --print-architecture)"
+if [ "${DEB_ARCH}" != "amd64" ]
+then
+    die "Architecture ${DEB_ARCH} is not supported, please use amd64."
+fi
+
 if [ -z "$repo_user" ] && [ "$production_repo" = "true" ]
 then
     read -p "TecArt Enterprise Repository User: " repo_user 1>&3
