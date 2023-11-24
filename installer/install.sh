@@ -335,6 +335,10 @@ MYSQLCONF
 
 mkdir -p /data/tmp/
 chmod 1777 /data/tmp
+
+mkdir -m 2750 /var/log/mysql
+chown mysql /var/log/mysql
+
 service mysql stop
 rm /var/lib/mysql/ib_logfile*
 service mysql start
