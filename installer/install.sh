@@ -286,13 +286,11 @@ innodb_log_buffer_size          = 8M
 innodb_log_file_size            = 256M      # Nach Änderung dieses Wertes
                                             # müssen die alten logfiles 
                                             # gelöscht werden
-innodb_log_files_in_group       = 2
 innodb_flush_log_at_trx_commit  = 2
 innodb_flush_method             = O_DIRECT
 innodb_file_per_table                       # Erstellt pro Tabelle eine Datei
                                             # anstatt alles in einer grossen 
                                             # Datei zu speichern
-innodb_thread_concurrency       = 8
  
 long_query_time                = 2
 log_error                      = /var/log/mysql/mysql.err
@@ -339,9 +337,7 @@ chmod 1777 /data/tmp
 mkdir -m 2750 /var/log/mysql
 chown mysql /var/log/mysql
 
-service mysql stop
-rm /var/lib/mysql/ib_logfile*
-service mysql start
+systemctl restart mariadb
 
 echo "Creating database" >&3
 
