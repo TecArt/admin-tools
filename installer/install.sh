@@ -23,7 +23,9 @@ ACTION=""
 repo_user=""
 repo_pass=""
 production_repo="true"
+install_icinga="true"
 RELEASE=v54_82
+DEBIAN_DIST="bookworm"
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
@@ -48,6 +50,7 @@ Options:
     --repo-pass             Password for the Enterprise Repositories
 -l, --log-path [DIR]        Write logs into given directory
     --no-production-repo    Force the use of untested repositories
+-i, --no-icinga             Skip the installation of Icinga2 and Monitoring Plugins
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
@@ -81,6 +84,9 @@ while [ $# -gt 0 ] ; do
     --no-production-repo)
         production_repo="false"
         ;;
+    -i|--no-icinga)
+        install_icinga="false"
+	;;
     -*)
         usage "Unknown option '$1'"
         ;;
@@ -202,10 +208,23 @@ TECARTREPO
 
 wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
 
+if [ "${install_icinga}" = "true" ]
+then
+    wget -O - https://packages.icinga.com/icinga.key | gpg --dearmor -o /usr/share/keyrings/icinga-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/icinga-archive-keyring.gpg] https://${mirror_host}/packages.icinga.com/debian icinga-${DEBIAN_DIST} main" > /etc/apt/sources.list.d/icinga.list
+    chmod 644 /etc/apt/sources.list.d/icinga.list
+fi
+
 apt-get update
 
 echo "Installing dependencies. This might take a while..." >&3
 apt install -y tecart-archive-keyring redis-server tecart-essentials-server-5.4
+
+if [ "${install_icinga}" = "true" ]
+then
+    echo "Installing Icinga2 and monitoring plugins." >&3
+    apt install -y --no-install-recommends icinga2 monitoring-plugins tecart-nagios-plugins
+fi
 
 echo "Configuring timezone and locale" >&3
 echo "Europe/Berlin" > /etc/timezone
