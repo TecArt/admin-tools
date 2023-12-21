@@ -189,7 +189,7 @@ EOL
 fi
 
 apt update
-apt install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert
+apt install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert rsyslog
 
 cat << EOL > /etc/apt/sources.list
 deb https://${mirror_host}/ftp.de.debian.org/debian/ bookworm main contrib non-free non-free-firmware
