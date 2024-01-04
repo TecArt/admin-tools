@@ -191,6 +191,12 @@ fi
 apt update
 apt install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert rsyslog
 
+# Install resolvconf prior to everything else, otherwise we risk breaking 
+# Packages that download external resources like ttf-mscorefonts-installer
+# due to the loss of DNS during installation
+apt install -y resolvconf 
+resolvconf -u
+
 cat << EOL > /etc/apt/sources.list
 deb https://${mirror_host}/ftp.de.debian.org/debian/ bookworm main contrib non-free non-free-firmware
 deb https://${mirror_host}/security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
