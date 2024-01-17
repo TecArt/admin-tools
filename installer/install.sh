@@ -334,7 +334,7 @@ performance_schema = ON
 
 [mysqldump]
 quick
-max_allowed_packet = 64M
+max_allowed_packet = 256M
  
 [mysql]
 no-auto-rehash
