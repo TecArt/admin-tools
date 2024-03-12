@@ -420,7 +420,7 @@ tar -C /var/www/crm/ --strip-components 1 -pxf "crm_${RELEASE}.tar.gz"
 echo "Creating /data directories" >&3
 
 mkdir -p {/var/www/crm/config,/data/crm}
-chown -R www-data.www-data {/var/www/crm,/data/crm}
+chown -R www-data:www-data {/var/www/crm,/data/crm}
 chmod -R 0700 {/var/www/crm,/data/crm}
 
 echo "Setting up apache2" >&3
@@ -541,8 +541,8 @@ sed -i -e 's|{$setup_pass}||' \
 	/var/www/crm/config/conf.inc.php
 
 mkdir "/data/crm/tcucd"
-chown www-data.www-data "/var/www/crm/config/conf.inc.php"
-chown www-data.www-data "/data/crm/tcucd"
+chown www-data:www-data "/var/www/crm/config/conf.inc.php"
+chown www-data:www-data "/data/crm/tcucd"
 
 echo "Running TecArt Software setup" >&3
 
