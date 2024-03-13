@@ -549,7 +549,7 @@ echo "Running TecArt Software setup" >&3
 cd /var/www/crm/setup
 sudo -u www-data ./setup
 
-} >"${LOG_PATH}/tecart-install.log" 2>"${LOG_PATH}/tecart-install.err"
+} >"${LOG_PATH}/tecart-install.log" 2> >(grep -Ev '([\.]{10} ){2,}' > "${LOG_PATH}/tecart-install.err")
 
 echo "5.4" > /etc/tecart-installer-version
 
