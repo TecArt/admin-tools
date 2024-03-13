@@ -188,13 +188,13 @@ machine customer.mirror.tecart.de
 EOL
 fi
 
-apt update
-apt install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert rsyslog
+apt-get update
+apt-get install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert rsyslog
 
 # Install resolvconf prior to everything else, otherwise we risk breaking 
 # Packages that download external resources like ttf-mscorefonts-installer
 # due to the loss of DNS during installation
-apt install -y resolvconf 
+apt-get install -y resolvconf 
 resolvconf -u
 
 cat << EOL > /etc/apt/sources.list
@@ -212,11 +212,11 @@ Architectures: amd64
 Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
 TECARTREPO
 
-wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
+wget -q -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
 
 if [ "${install_icinga}" = "true" ]
 then
-    wget -O - https://packages.icinga.com/icinga.key | gpg --dearmor -o /usr/share/keyrings/icinga-archive-keyring.gpg
+    wget -q -O - https://packages.icinga.com/icinga.key | gpg --dearmor -o /usr/share/keyrings/icinga-archive-keyring.gpg
     echo "deb [signed-by=/usr/share/keyrings/icinga-archive-keyring.gpg] https://${mirror_host}/packages.icinga.com/debian icinga-${DEBIAN_DIST} main" > /etc/apt/sources.list.d/icinga.list
     chmod 644 /etc/apt/sources.list.d/icinga.list
 fi
@@ -224,12 +224,12 @@ fi
 apt-get update
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-archive-keyring redis-server tecart-essentials-server-5.4
+apt-get install -y tecart-archive-keyring redis-server tecart-essentials-server-5.4
 
 if [ "${install_icinga}" = "true" ]
 then
     echo "Installing Icinga2 and monitoring plugins." >&3
-    apt install -y --no-install-recommends icinga2 monitoring-plugins tecart-nagios-plugins
+    apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-nagios-plugins
 fi
 
 echo "Configuring timezone and locale" >&3
@@ -410,7 +410,7 @@ update-alternatives --set php /usr/bin/php8.2 || true
 echo "Downloading latest TecArt Software release" >&3
 
 cd /usr/src
-wget "https://crmsrv.tecart.de/release/crm_${RELEASE}.tar.gz"
+wget -q "https://crmsrv.tecart.de/release/crm_${RELEASE}.tar.gz"
 
 echo "Installing latest release" >&3
 
