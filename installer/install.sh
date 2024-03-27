@@ -532,6 +532,7 @@ sed -i -e 's|{$setup_pass}||' \
 	-e "s|{\$dbpass}|$MYSQLPASS_B64|" \
 	-e 's|{$dbhost}|localhost|' \
 	-e 's|{$memcache}|127.0.0.1:6379|' \
+        -e 's|{$memcache_type}|redis|' \
 	-e 's|mem_cache_d|redis|' \
 	-e 's|{$dataroot}|/data/crm|' \
 	-e 's|{$phpcli}|/usr/bin/php|' \
