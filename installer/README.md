@@ -6,7 +6,7 @@ configuration of a server to use with the TecArt Business software.
 You will need access to the TecArt Enterprise Repositories. To gain access please [contact your customer service representative](https://www.tecart.de/kontakt)
 
 ```
-Usage: install.sh [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] [--no-production-repo] (check|install)
+Usage: install.sh [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] [--no-production-repo] [-i] [-p] (check|install)
 
 Options:
 -h, --help                  Display this usage message and exit
@@ -14,12 +14,14 @@ Options:
     --repo-pass             Password for the Enterprise Repositories
 -l, --log-path [DIR]        Write logs into given directory
     --no-production-repo    Force the use of untested repositories
+-i, --no-icinga             Skip the installation of Icinga2 and Monitoring Plugins
+-p, --postgres              Use PostgreSQL instead of MariaDB
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
-This program is supposed to be run on a clean Debian 11 Installation. Please 
+This program is supposed to be run on a clean Debian 12 Installation. Please 
 do not run this script on a server that has already been configured for other 
 software!
 
-Copyright (c) by TecArt GmbH, 2021
+Copyright (c) by TecArt GmbH, 2024
 ```
