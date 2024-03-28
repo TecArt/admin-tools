@@ -449,7 +449,7 @@ echo "Database-Password: $DBPASS"
 
 if [ "$install_postgres" == "true" ]
 then
-    PGEXEC="sudo -u postgres psql "
+    PGEXEC="sudo -iu postgres psql "
     $PGEXEC postgres -c "CREATE ROLE tecart WITH LOGIN PASSWORD '${DBPASS}' VALID UNTIL 'infinity';"
     $PGEXEC postgres -c "CREATE DATABASE \"tecart\" TEMPLATE template0 OWNER tecart ENCODING 'UTF8' LC_COLLATE 'de_DE.UTF-8' CONNECTION LIMIT -1;"
     $PGEXEC postgres -c "REVOKE ALL ON DATABASE tecart FROM public;"
