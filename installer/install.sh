@@ -60,7 +60,7 @@ ${yll}This program is supposed to be run on a clean Debian 12 Installation. Plea
 do not run this script on a server that has already been configured for other 
 software!${rst}
 
-Copyright (c) by TecArt GmbH, 2023
+Copyright (c) by TecArt GmbH, 2024
 EOF
 )"
     exit 1
