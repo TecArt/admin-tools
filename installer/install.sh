@@ -2,7 +2,7 @@
 #
 # Installer for the TecArt Business Software and all of it's dependencies.
 #
-# This program is supposed to be run on a clean Debian 11 Installation. Please
+# This program is supposed to be run on a clean Debian 12 Installation. Please
 # do not run this script on a server that has already been configured for other 
 # software!
 #
@@ -23,7 +23,10 @@ ACTION=""
 repo_user=""
 repo_pass=""
 production_repo="true"
-RELEASE=v53_80
+install_icinga="true"
+install_postgres="false"
+RELEASE=v54_82
+DEBIAN_DIST="bookworm"
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
@@ -40,7 +43,7 @@ usage() {
     local yll='\e[33m'
     local rst='\e[39m'
     echo -e "$(cat << EOF
-Usage: $PROGNAME [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] [--no-production-repo] (check|install)
+Usage: $PROGNAME [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] [--no-production-repo] [-i] [-p] (check|install)
 
 Options:
 -h, --help                  Display this usage message and exit
@@ -48,14 +51,16 @@ Options:
     --repo-pass             Password for the Enterprise Repositories
 -l, --log-path [DIR]        Write logs into given directory
     --no-production-repo    Force the use of untested repositories
+-i, --no-icinga             Skip the installation of Icinga2 and Monitoring Plugins
+-p, --postgres              Use PostgreSQL instead of MariaDB
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
-${yll}This program is supposed to be run on a clean Debian 11 Installation. Please 
+${yll}This program is supposed to be run on a clean Debian 12 Installation. Please 
 do not run this script on a server that has already been configured for other 
 software!${rst}
 
-Copyright (c) by TecArt GmbH, 2023
+Copyright (c) by TecArt GmbH, 2024
 EOF
 )"
     exit 1
@@ -81,6 +86,12 @@ while [ $# -gt 0 ] ; do
     --no-production-repo)
         production_repo="false"
         ;;
+    -i|--no-icinga)
+        install_icinga="false"
+        ;;
+    -p|--postgres)
+        install_postgres="true"
+	;;
     -*)
         usage "Unknown option '$1'"
         ;;
@@ -112,6 +123,12 @@ then
     die "It looks like this installer ran already!"
 fi
 
+DEB_ARCH="$(dpkg --print-architecture)"
+if [ "${DEB_ARCH}" != "amd64" ]
+then
+    die "Architecture ${DEB_ARCH} is not supported, please use amd64."
+fi
+
 if [ -z "$repo_user" ] && [ "$production_repo" = "true" ]
 then
     read -p "TecArt Enterprise Repository User: " repo_user 1>&3
@@ -138,15 +155,15 @@ else
 fi
 
 if [ "$repo_test" -eq 1 ] && [ "$(lsb_release -is)" == "Debian" ] && \
-    [ "$(lsb_release -rs)" = "11" ]
+    [ "$(lsb_release -rs)" = "12" ]
 then
-    echo "Mirror is available and system running on Debian 11"
+    echo "Mirror is available and system running on Debian 12"
     if [ "$ACTION" = "check" ]
     then
         exit 0
     fi
 else
-    echo "Could not confirm that mirros is available and system running on Debian 11"
+    echo "Could not confirm that mirros is available and system running on Debian 12"
     exit 1
 fi
 
@@ -176,49 +193,69 @@ machine customer.mirror.tecart.de
 EOL
 fi
 
-apt update
-apt install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert
+apt-get update
+apt-get install -y apt-transport-https dirmngr wget pwgen debconf ssl-cert rsyslog
+
+# Install resolvconf prior to everything else, otherwise we risk breaking 
+# Packages that download external resources like ttf-mscorefonts-installer
+# due to the loss of DNS during installation
+apt-get install -y resolvconf 
+resolvconf -u
 
 cat << EOL > /etc/apt/sources.list
-deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye main contrib non-free
-deb https://${mirror_host}/security.debian.org/debian-security bullseye-security main contrib non-free
-deb https://${mirror_host}/ftp.de.debian.org/debian/ bullseye-updates main contrib non-free
+deb https://${mirror_host}/ftp.de.debian.org/debian/ bookworm main contrib non-free non-free-firmware
+deb https://${mirror_host}/security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
+deb https://${mirror_host}/ftp.de.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
 EOL
 
-cat << TECARTREPO > /etc/apt/sources.list.d/tecart-bullseye.sources
+cat << TECARTREPO > /etc/apt/sources.list.d/tecart-bookworm.sources
 Types: deb
 URIs: https://${mirror_host}/repo.tecart.de/apt/debian/
-Suites: bullseye
+Suites: bookworm
 Components: main
 Architectures: amd64
 Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
 TECARTREPO
 
-cat << PHPREPO > /etc/apt/sources.list.d/tecart-php8.sources
-Types: deb
-URIs: https://${mirror_host}/packages.sury.org/php/
-Suites: bullseye
-Components: main
-Architectures: amd64
-Signed-By: /usr/share/keyrings/sury-archive-keyring.gpg
-PHPREPO
+wget -q -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
 
-wget -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de/tecart-archive-keyring.gpg
-wget -O /usr/share/keyrings/sury-archive-keyring.gpg https://packages.sury.org/php/apt.gpg
+if [ "${install_icinga}" = "true" ]
+then
+    wget -q -O - https://packages.icinga.com/icinga.key | gpg --dearmor -o /usr/share/keyrings/icinga-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/icinga-archive-keyring.gpg] https://${mirror_host}/packages.icinga.com/debian icinga-${DEBIAN_DIST} main" > /etc/apt/sources.list.d/icinga.list
+    chmod 644 /etc/apt/sources.list.d/icinga.list
+fi
 
 apt-get update
 
-# Debian installs without systemd-resolved enabled but some packages require
-# it to be active. We'll back up the original resolv.conf for quick access.
-cp /etc/resolv.conf{,.dist}
-systemctl enable systemd-resolved.service
-systemctl start systemd-resolved.service
+if [ "$install_postgres" == "true" ]
+then
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgres-archive-keyring.gpg
+    cat << POSTGRESREPO > /etc/apt/sources.list.d/postgresql.sources
+Types: deb
+URIs: https://${mirror_host}/apt.postgresql.org/pub/repos/apt 
+Suites: bookworm-pgdg
+Components: main
+Architectures: amd64
+Signed-By: /usr/share/keyrings/postgres-archive-keyring.gpg
+POSTGRESREPO
+    apt-get update
+    echo "Installing PosgreSQL..." >&3
+    apt-get install -y postgresql-14
+else
+    echo "Installing MariaDB..." >&3
+    apt-get install -y mariadb-server
+fi
 
 echo "Installing dependencies. This might take a while..." >&3
-apt install -y tecart-archive-keyring tecart-essentials-server-5.3
 
-# Restore the resolv.conf in case the systemd resolver didn't work fast enough
-cp /etc/resolv.conf{.dist,}
+apt-get install -y tecart-archive-keyring redis-server tecart-essentials-server-5.4
+
+if [ "${install_icinga}" = "true" ]
+then
+    echo "Installing Icinga2 and monitoring plugins." >&3
+    apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-nagios-plugins
+fi
 
 echo "Configuring timezone and locale" >&3
 echo "Europe/Berlin" > /etc/timezone
@@ -241,11 +278,65 @@ test -f /etc/rc.local || echo -e "#!/bin/sh\n\nfor i in \`atq | awk '{print \$1}
 grep 'atrm' /etc/rc.local || sed -i "s/exit 0/for i in \`atq | awk '{print \$1}'\`;do atrm \$i;done\n\nexit 0/" /etc/rc.local
 chmod +x /etc/rc.local
 
-echo "Configuring MariaDB" >&3
-MYSQLMEMORY=$(($MEMORY/10*4))
-MYSQLCONNECTIONS=$(($MEMORY/5))
+mkdir -p /data/tmp/
+chmod 1777 /data/tmp
 
-cat <<MYSQLCONF > /etc/mysql/mariadb.conf.d/tecart.cnf
+if [ "${install_postgres}" == "true" ]
+then
+    echo "Configuring PostgreSQL" >&3
+    PSQLMEMORY=$(($MEMORY/8))
+    PSQLCONNECTIONS=$(($MEMORY/5))
+
+    cat <<PSQLCONF > /etc/postgresql/14/main/conf.d/tecart.conf
+#------------------------------------------------------------------------------
+# SECURITY
+#------------------------------------------------------------------------------
+search_path = '"\$user"'
+
+#------------------------------------------------------------------------------
+# CONNECTIONS AND AUTHENTICATION
+#------------------------------------------------------------------------------
+max_connections = ${PSQLCONNECTIONS}
+
+#------------------------------------------------------------------------------
+# RESOURCE USAGE (except WAL)
+#------------------------------------------------------------------------------
+shared_buffers = ${PSQLMEMORY}MB                  # min 128kB
+                                        # (change requires restart)
+
+#------------------------------------------------------------------------------
+# STATISTICS
+#------------------------------------------------------------------------------
+track_activities = on
+track_activity_query_size = 1024       # (change requires restart)
+track_counts = on
+track_io_timing = on
+
+#------------------------------------------------------------------------------
+# AUTOVACUUM
+#------------------------------------------------------------------------------
+
+autovacuum = on                        # Enable autovacuum subprocess?  'on'
+                                        # requires track_counts to also be on.
+autovacuum_max_workers = 6             # max number of autovacuum subprocesses
+                                        # (change requires restart)
+
+#------------------------------------------------------------------------------
+# WRITE-AHEAD LOG
+#------------------------------------------------------------------------------
+max_wal_size = 1GB
+min_wal_size = 80MB
+
+PSQLCONF
+
+    systemctl restart postgresql
+
+else
+    echo "Configuring MariaDB" >&3
+    MYSQLMEMORY=$(($MEMORY/10*4))
+    MYSQLCONNECTIONS=$(($MEMORY/5))
+
+    cat <<MYSQLCONF > /etc/mysql/mariadb.conf.d/tecart.cnf
 [client]
 default-character-set = utf8mb4
  
@@ -268,10 +359,10 @@ sort_buffer_size       = 4M
 net_buffer_length      = 8K
 read_buffer_size       = 4M
 read_rnd_buffer_size   = 4M
-thread_cache_size      = $MYSQLCONNECTIONS                # etwa 1 pro aktiver, 
+thread_cache_size      = ${MYSQLCONNECTIONS}      # etwa 1 pro aktiver, 
                                             # gleichzeitiger Nutzer
  
-max_connections        = $MYSQLCONNECTIONS                # Max. Verbindungen, etwa 1 - 2 je
+max_connections        = ${MYSQLCONNECTIONS}      # Max. Verbindungen, etwa 1 - 2 je
                                             # aktiver Nutzer; etwa 5 bei Verwendung
                                             # persistenter Verbindungen
 open_files_limit       = 16384
@@ -299,13 +390,11 @@ innodb_log_buffer_size          = 8M
 innodb_log_file_size            = 256M      # Nach Änderung dieses Wertes
                                             # müssen die alten logfiles 
                                             # gelöscht werden
-innodb_log_files_in_group       = 2
 innodb_flush_log_at_trx_commit  = 2
 innodb_flush_method             = O_DIRECT
 innodb_file_per_table                       # Erstellt pro Tabelle eine Datei
                                             # anstatt alles in einer grossen 
                                             # Datei zu speichern
-innodb_thread_concurrency       = 8
  
 long_query_time                = 2
 log_error                      = /var/log/mysql/mysql.err
@@ -324,7 +413,7 @@ performance_schema = ON
 
 [mysqldump]
 quick
-max_allowed_packet = 64M
+max_allowed_packet = 256M
  
 [mysql]
 no-auto-rehash
@@ -346,39 +435,41 @@ interactive-timeout
 
 MYSQLCONF
 
-mkdir -p /data/tmp/
-chmod 1777 /data/tmp
-service mysql stop
-rm /var/lib/mysql/ib_logfile*
-service mysql start
+    mkdir -m 2750 /var/log/mysql
+    chown mysql /var/log/mysql
+
+    systemctl restart mariadb
+fi
 
 echo "Creating database" >&3
 
-MYSQLPASS=$(pwgen -s 24)
-echo "$MYSQLPASS" > /root/mysql-crmpass
-echo "MySQL-User: tecart"
-echo "MySQL-Password: $MYSQLPASS"
+DBPASS=$(pwgen -s 24)
+echo "$DBPASS" > /root/database-crmpass
+echo "Database-User: tecart"
+echo "Database-Password: $DBPASS"
 
-mysql -e "CREATE USER 'tecart'@'localhost' IDENTIFIED BY '$MYSQLPASS';"
-mysql -e "GRANT USAGE ON *.* TO 'tecart'@'localhost' IDENTIFIED BY '$MYSQLPASS' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0;"
-mysql -e "CREATE DATABASE tecart DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_german2_ci;"
-mysql -e "GRANT ALL PRIVILEGES ON tecart.* TO 'tecart'@'localhost';"
-mysql -e "FLUSH PRIVILEGES;"
+if [ "$install_postgres" == "true" ]
+then
+    PGEXEC="sudo -iu postgres psql "
+    $PGEXEC postgres -c "CREATE ROLE tecart WITH LOGIN PASSWORD '${DBPASS}' VALID UNTIL 'infinity';"
+    $PGEXEC postgres -c "CREATE DATABASE \"tecart\" TEMPLATE template0 OWNER tecart ENCODING 'UTF8' LC_COLLATE 'de_DE.UTF-8' CONNECTION LIMIT -1;"
+    $PGEXEC postgres -c "REVOKE ALL ON DATABASE tecart FROM public;"
+    $PGEXEC tecart   -c "CREATE SCHEMA tecart AUTHORIZATION tecart;"
+    $PGEXEC tecart   -c "ALTER DATABASE tecart SET SEARCH_PATH TO tecart;"
+else
+    mysql -e "CREATE USER 'tecart'@'localhost' IDENTIFIED BY '$DBPASS';"
+    mysql -e "GRANT USAGE ON *.* TO 'tecart'@'localhost' IDENTIFIED BY '$DBPASS' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0;"
+    mysql -e "CREATE DATABASE tecart DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_german2_ci;"
+    mysql -e "GRANT ALL PRIVILEGES ON tecart.* TO 'tecart'@'localhost';"
+    mysql -e "FLUSH PRIVILEGES;"
+fi
 
+echo "Configuring redis" >&3
 
-echo "Configuring memcached" >&3
+echo "maxmemory $((${MEMORY}/32*4))mb" >> /etc/redis/redis.conf
+echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf
 
-mkdir -p /etc/systemd/system/memcached.service.d/
-cat <<MEMCACHEDCONF > /etc/systemd/system/memcached.service.d/override.conf
-[Service]
-PermissionsStartOnly=true
-ExecStartPre=/usr/bin/install -d -g www-data -o www-data -m 1755 -v /run/memcached
-ExecStopPost=/bin/rm -rf /run/memcached
-MEMCACHEDCONF
-
-echo -en "-d\n-m $((${MEMORY}/32*4))\n-u www-data\n-s /run/memcached/memcached.sock" > /etc/memcached.conf
-systemctl daemon-reload
-service memcached restart
+systemctl enable --now redis-server
 
 echo "Generating snakeoil certificate" >&3
 /usr/sbin/make-ssl-cert generate-default-snakeoil || true
@@ -394,17 +485,17 @@ APACHECONF
 sed -i -e 's:ServerSignature On:ServerSignature Off:' \
        -e 's:ServerTokens OS:ServerTokens Prod:' /etc/apache2/conf-enabled/security.conf
 
-a2enmod php8.0 || true
+a2enmod php8.2 || true
 systemctl daemon-reload
 service apache2 restart
 
 echo "Configuring alternatives: php" >&3
-update-alternatives --set php /usr/bin/php8.0 || true
+update-alternatives --set php /usr/bin/php8.2 || true
 
 echo "Downloading latest TecArt Software release" >&3
 
 cd /usr/src
-wget "https://crmsrv.tecart.de/release/crm_${RELEASE}.tar.gz"
+wget -q "https://crmsrv.tecart.de/release/crm_${RELEASE}.tar.gz"
 
 echo "Installing latest release" >&3
 
@@ -414,7 +505,7 @@ tar -C /var/www/crm/ --strip-components 1 -pxf "crm_${RELEASE}.tar.gz"
 echo "Creating /data directories" >&3
 
 mkdir -p {/var/www/crm/config,/data/crm}
-chown -R www-data.www-data {/var/www/crm,/data/crm}
+chown -R www-data:www-data {/var/www/crm,/data/crm}
 chmod -R 0700 {/var/www/crm,/data/crm}
 
 echo "Setting up apache2" >&3
@@ -511,8 +602,15 @@ service apache2 restart
 echo "Base installation done." >&3
 echo "Configuring TecArt Software" >&3
 
-MYSQLPASS_B64=$(echo -en "$MYSQLPASS" | base64)
-MYSQLUSER_B64=$(echo -en "tecart" | base64)
+DBPASS_B64=$(echo -en "$DBPASS" | base64)
+DBUSER_B64=$(echo -en "tecart" | base64)
+
+if [ "${install_postgres}" == "true" ]
+then
+    DBDRIVER="postgresql"
+else
+    DBDRIVER="mysqli_innodb"
+fi
 
 cp /var/www/crm/class/action/setup/config.tpl.php /var/www/crm/config/conf.inc.php
 sed -i -e 's|{$setup_pass}||' \
@@ -520,31 +618,33 @@ sed -i -e 's|{$setup_pass}||' \
 	-e 's|{$logosrc}|../themes/blue/icons/tlogo.gif|' \
 	-e 's|{$logolink}|https://www.tecart.de/|' \
 	-e 's|{$logotitle}|TecArt GmbH - TecArt-System|' \
-	-e 's|{$dbdriver}|mysqli_innodb|' \
+	-e "s|{\$dbdriver}|${DBDRIVER}|" \
 	-e 's|{$dbname}|tecart|' \
-	-e "s|{\$dbuser}|$MYSQLUSER_B64|" \
-	-e "s|{\$dbpass}|$MYSQLPASS_B64|" \
+	-e "s|{\$dbuser}|${DBUSER_B64}|" \
+	-e "s|{\$dbpass}|${DBPASS_B64}|" \
 	-e 's|{$dbhost}|localhost|' \
-	-e 's|{$memcache}|unix:///run/memcached/memcached.sock:0|' \
+	-e 's|{$memcache}|127.0.0.1:6379|' \
+	-e 's|{$memcache_type}|redis|' \
+	-e 's|mem_cache_d|redis|' \
 	-e 's|{$dataroot}|/data/crm|' \
 	-e 's|{$phpcli}|/usr/bin/php|' \
-	-e 's|{$phpini}|/etc/php/8.0/cli/php.ini|' \
+	-e 's|{$phpini}|/etc/php/8.2/cli/php.ini|' \
 	-e 's|{$crm_title}|TecArt CRM Professional - |' \
 	-e "s|\$config\['php_path'\]|\$config['data_paths']['tcucd_dir'] = '/data/crm/tcucd';\n\$config['php_path']|" \
 	/var/www/crm/config/conf.inc.php
 
 mkdir "/data/crm/tcucd"
-chown www-data.www-data "/var/www/crm/config/conf.inc.php"
-chown www-data.www-data "/data/crm/tcucd"
+chown www-data:www-data "/var/www/crm/config/conf.inc.php"
+chown www-data:www-data "/data/crm/tcucd"
 
 echo "Running TecArt Software setup" >&3
 
 cd /var/www/crm/setup
 sudo -u www-data ./setup
 
-} >"${LOG_PATH}/tecart-install.log" 2>"${LOG_PATH}/tecart-install.err"
+} >"${LOG_PATH}/tecart-install.log" 2> >(grep -Ev '([\.]{10} ){2,}' > "${LOG_PATH}/tecart-install.err")
 
-echo "5.3" > /etc/tecart-installer-version
+echo "5.4" > /etc/tecart-installer-version
 
 echo ""
 echo ""
