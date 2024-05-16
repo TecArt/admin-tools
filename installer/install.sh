@@ -248,6 +248,7 @@ else
 fi
 
 echo "Installing dependencies. This might take a while..." >&3
+
 apt-get install -y tecart-archive-keyring redis-server tecart-essentials-server-5.4
 
 if [ "${install_icinga}" = "true" ]
