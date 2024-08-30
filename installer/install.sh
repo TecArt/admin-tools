@@ -254,7 +254,7 @@ apt-get install -y tecart-archive-keyring redis-server tecart-essentials-server-
 if [ "${install_icinga}" = "true" ]
 then
     echo "Installing Icinga2 and monitoring plugins." >&3
-    apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-nagios-plugins
+    apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-monitoring-plugins
 fi
 
 echo "Configuring timezone and locale" >&3
