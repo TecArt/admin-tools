@@ -241,10 +241,10 @@ Signed-By: /usr/share/keyrings/postgres-archive-keyring.gpg
 POSTGRESREPO
     apt-get update
     echo "Installing PosgreSQL..." >&3
-    apt-get install -y postgresql-14
+    apt-get install -y tecart-essentials-server-5.4-pgsql
 else
     echo "Installing MariaDB..." >&3
-    apt-get install -y mariadb-server
+    apt-get install -y tecart-essentials-server-5.4-mariadb
 fi
 
 echo "Installing dependencies. This might take a while..." >&3
