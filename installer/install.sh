@@ -495,12 +495,12 @@ update-alternatives --set php /usr/bin/php8.2 || true
 echo "Downloading latest TecArt Software release" >&3
 
 cd /usr/src
-wget -q "https://crmsrv.tecart.de/release/crm_${RELEASE}.tar.gz"
+wget -q "https://crmsrv.tecart.de/release/crm_${RELEASE}_latest.tar.gz"
 
 echo "Installing latest release" >&3
 
 mkdir -p /var/www/crm
-tar -C /var/www/crm/ --strip-components 1 -pxf "crm_${RELEASE}.tar.gz"
+tar -C /var/www/crm/ --strip-components 1 -pxf "crm_${RELEASE}_latest.tar.gz"
 
 echo "Creating /data directories" >&3
 
