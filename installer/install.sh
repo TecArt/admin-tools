@@ -241,10 +241,10 @@ Signed-By: /usr/share/keyrings/postgres-archive-keyring.gpg
 POSTGRESREPO
     apt-get update
     echo "Installing PosgreSQL..." >&3
-    apt-get install -y postgresql-14
+    apt-get install -y tecart-essentials-server-5.4-pgsql
 else
     echo "Installing MariaDB..." >&3
-    apt-get install -y mariadb-server
+    apt-get install -y tecart-essentials-server-5.4-mariadb
 fi
 
 echo "Installing dependencies. This might take a while..." >&3
@@ -254,7 +254,7 @@ apt-get install -y tecart-archive-keyring redis-server tecart-essentials-server-
 if [ "${install_icinga}" = "true" ]
 then
     echo "Installing Icinga2 and monitoring plugins." >&3
-    apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-nagios-plugins
+    apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-monitoring-plugins
 fi
 
 echo "Configuring timezone and locale" >&3
@@ -495,12 +495,12 @@ update-alternatives --set php /usr/bin/php8.2 || true
 echo "Downloading latest TecArt Software release" >&3
 
 cd /usr/src
-wget -q "https://crmsrv.tecart.de/release/crm_${RELEASE}.tar.gz"
+wget -q "https://crmsrv.tecart.de/release/crm_${RELEASE}_latest.tar.gz"
 
 echo "Installing latest release" >&3
 
 mkdir -p /var/www/crm
-tar -C /var/www/crm/ --strip-components 1 -pxf "crm_${RELEASE}.tar.gz"
+tar -C /var/www/crm/ --strip-components 1 -pxf "crm_${RELEASE}_latest.tar.gz"
 
 echo "Creating /data directories" >&3
 
