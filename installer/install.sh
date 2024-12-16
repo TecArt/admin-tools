@@ -221,7 +221,8 @@ wget -q -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de
 
 if [ "${install_icinga}" = "true" ]
 then
-    wget -q -O - https://packages.icinga.com/icinga.key | gpg --dearmor -o /usr/share/keyrings/icinga-archive-keyring.gpg
+    wget -O /tmp/icinga-archive-keyring.deb "https://packages.icinga.com/icinga-archive-keyring_latest+debian$(. /etc/os-release; echo "$VERSION_ID").deb"
+    apt-get install -y --no-install-recommends /tmp/icinga-archive-keyring.deb && rm -f /tmp/icinga-archive-keyring.deb
     echo "deb [signed-by=/usr/share/keyrings/icinga-archive-keyring.gpg] https://${mirror_host}/packages.icinga.com/debian icinga-${DEBIAN_DIST} main" > /etc/apt/sources.list.d/icinga.list
     chmod 644 /etc/apt/sources.list.d/icinga.list
 fi
