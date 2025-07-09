@@ -256,6 +256,12 @@ if [ "${install_icinga}" = "true" ]
 then
     echo "Installing Icinga2 and monitoring plugins." >&3
     apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-monitoring-plugins
+
+    if [ "${install_postgres}" = "true" ]
+    then
+        echo "Installing additional postgres monitoring packages." >&3
+        apt-get install -y check-postgres
+    fi
 fi
 
 echo "Configuring timezone and locale" >&3
