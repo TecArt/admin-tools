@@ -12,9 +12,21 @@ set -euo pipefail
 exec 4>&2
 exec 3>&1
 
+fatal () {
+    echo -e "⛔ \e[1;31;1;40m[FATAL]:\e[0m   $*" >&2
+    exit 1
+}
+
+warn() {
+    echo -e "⚠️ \e[1;33;1;40m[WARNING]:\e[0m $*"
+}
+
+info() {
+    echo -e "ℹ️ \e[1;32;1;40m[INFO]:\e[0m    $*"
+}
+
 if [ "$EUID" -ne 0 ]
-  then echo "Please run this script as root"
-  exit
+  then fatal "Please run this script as root"
 fi
 
 export PATH=$PATH:/usr/sbin
@@ -24,18 +36,14 @@ repo_user=""
 repo_pass=""
 production_repo="true"
 install_icinga="true"
-install_postgres="false"
+install_postgres="true"
 RELEASE=v54_82
 DEBIAN_DIST="bookworm"
 LOG_PATH=/var/log/tecart
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
+PROGNAME=$(basename "$0")
 
-PROGNAME=$(basename $0)
-die() {
-    echo "$PROGNAME: $*" >&2
-    exit 1
-}
 usage() {
     if [ "$*" != "" ] ; then
         echo -e "\e[31m\e[1m[Error]\e[0m $*\n"
@@ -52,7 +60,7 @@ Options:
 -l, --log-path [DIR]        Write logs into given directory
     --no-production-repo    Force the use of untested repositories
 -i, --no-icinga             Skip the installation of Icinga2 and Monitoring Plugins
--p, --postgres              Use PostgreSQL instead of MariaDB
+-m, --mariadb               Use MariaDB instead of Postgres \e[1;33;1;40m(deprecated)\e[0m"
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
@@ -60,7 +68,7 @@ ${yll}This program is supposed to be run on a clean Debian 12 Installation. Plea
 do not run this script on a server that has already been configured for other 
 software!${rst}
 
-Copyright (c) by TecArt GmbH, 2024
+Copyright (c) by TecArt GmbH, 2025
 EOF
 )"
     exit 1
@@ -89,8 +97,10 @@ while [ $# -gt 0 ] ; do
     -i|--no-icinga)
         install_icinga="false"
         ;;
-    -p|--postgres)
-        install_postgres="true"
+    -m|--mariadb)
+        warn "Using MariaDB as Database. Please note that this option is deprecated"
+        warn "and will be removed in future versions"
+        install_postgres="false"
 	;;
     -*)
         usage "Unknown option '$1'"
@@ -109,47 +119,43 @@ done
 if [ -z "$ACTION" ]
 then
     usage "No action specified"
-    exit 1
 fi
 
 if [ -z "$LOG_PATH" ]
 then
     usage "Log Path is empty!"
-    exit 1
 fi
 
 if [ -f "/etc/tecart-installer-version" ] && [ "$(wc -c /etc/tecart-installer-version | awk '{print $1}')" -gt 0 ]
 then
-    die "It looks like this installer ran already!"
+    fatal "It looks like this installer ran already!"
 fi
 
 DEB_ARCH="$(dpkg --print-architecture)"
 if [ "${DEB_ARCH}" != "amd64" ]
 then
-    die "Architecture ${DEB_ARCH} is not supported, please use amd64."
+    fatal "Architecture ${DEB_ARCH} is not supported, please use amd64."
 fi
 
 if [ -z "$repo_user" ] && [ "$production_repo" = "true" ]
 then
-    read -p "TecArt Enterprise Repository User: " repo_user 1>&3
+    read -r -p "TecArt Enterprise Repository User: " repo_user 1>&3
 fi
 
 if [ -z "$repo_pass" ] && [ "$production_repo" = "true" ]
 then
-    read -p "TecArt Enterprise Repository Password: " repo_pass
+    read -r -p "TecArt Enterprise Repository Password: " repo_pass
 fi
 
 # TODO: Ask for proxy settings
 
 repo_test=0
-if [ "$production_repo" = "true" ] && ! wget -q -O/dev/null https://${repo_user}:${repo_pass}@customer.mirror.tecart.de/
+if [ "$production_repo" = "true" ] && ! wget -q -O/dev/null "https://${repo_user}:${repo_pass}@customer.mirror.tecart.de/"
 then
-    echo "Could not connect to TecArt Enterprise Mirrors"
-    exit 1
+    fatal "Could not connect to TecArt Enterprise Mirrors"
 elif [ "$production_repo" = "false" ] && ! wget -q -O/dev/null https://mirror.tecart.de/
 then
-    echo "Could not connect to Free TecArt Mirrors"
-    exit 1
+    fatal "Could not connect to Free TecArt Mirrors"
 else
     repo_test=1
 fi
@@ -157,22 +163,20 @@ fi
 if [ "$repo_test" -eq 1 ] && [ "$(lsb_release -is)" == "Debian" ] && \
     [ "$(lsb_release -rs)" = "12" ]
 then
-    echo "Mirror is available and system running on Debian 12"
+    info "Mirror is available and system running on Debian 12"
     if [ "$ACTION" = "check" ]
     then
         exit 0
     fi
 else
-    echo "Could not confirm that mirros is available and system running on Debian 12"
-    exit 1
+    fatal "Could not confirm that mirros is available and system running on Debian 12"
 fi
 
 # /proc/meminfo sometimes reports a little bit less than actually installed, 
 # so we give some headroom here to the actual 2G
 if [ "$MEMORY" -lt 1900 ]
 then
-    echo "System reports to only have ${MEMORY}MiB of RAM. Minimum requirement is 2048MiB"
-    exit 1
+    fatal "System reports to only have ${MEMORY}MiB of RAM. Minimum requirement is 2048MiB"
 fi
 
 #
@@ -180,8 +184,8 @@ fi
 # Logs will be written to $LOG_PATH
 #
 {
-echo "Debug log will be written in $LOG_PATH" >&3
-echo "Updating apt config" >&3
+info "Debug log will be written in $LOG_PATH" >&3
+info "Updating apt config" >&3
 
 mirror_host="mirror.tecart.de"
 if [ "$production_repo" = "true" ]; then
@@ -221,6 +225,7 @@ wget -q -O /usr/share/keyrings/tecart-archive-keyring.gpg https://repo.tecart.de
 
 if [ "${install_icinga}" = "true" ]
 then
+    # shellcheck disable=SC1091
     wget -O /tmp/icinga-archive-keyring.deb "https://packages.icinga.com/icinga-archive-keyring_latest+debian$(. /etc/os-release; echo "$VERSION_ID").deb"
     apt-get install -y --no-install-recommends /tmp/icinga-archive-keyring.deb && rm -f /tmp/icinga-archive-keyring.deb
     echo "deb [signed-by=/usr/share/keyrings/icinga-archive-keyring.gpg] https://${mirror_host}/packages.icinga.com/debian icinga-${DEBIAN_DIST} main" > /etc/apt/sources.list.d/icinga.list
@@ -241,30 +246,30 @@ Architectures: amd64
 Signed-By: /usr/share/keyrings/postgres-archive-keyring.gpg
 POSTGRESREPO
     apt-get update
-    echo "Installing PosgreSQL..." >&3
+    info "Installing PosgreSQL..." >&3
     apt-get install -y tecart-essentials-server-5.4-pgsql
 else
-    echo "Installing MariaDB..." >&3
+    info "Installing MariaDB..." >&3
     apt-get install -y tecart-essentials-server-5.4-mariadb
 fi
 
-echo "Installing dependencies. This might take a while..." >&3
+info "Installing dependencies. This might take a while..." >&3
 
 apt-get install -y tecart-archive-keyring redis-server tecart-essentials-server-5.4
 
 if [ "${install_icinga}" = "true" ]
 then
-    echo "Installing Icinga2 and monitoring plugins." >&3
+    info "Installing Icinga2 and monitoring plugins." >&3
     apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-monitoring-plugins
 
     if [ "${install_postgres}" = "true" ]
     then
-        echo "Installing additional postgres monitoring packages." >&3
+        info "Installing additional postgres monitoring packages." >&3
         apt-get install -y check-postgres
     fi
 fi
 
-echo "Configuring timezone and locale" >&3
+info "Configuring timezone and locale" >&3
 echo "Europe/Berlin" > /etc/timezone
 dpkg-reconfigure -f noninteractive tzdata
 sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' \
@@ -276,10 +281,10 @@ update-locale LANG=de_DE.UTF-8
 # This is needed so www-data can run resource-limited scripts via systemd-run
 loginctl enable-linger www-data
 
-echo "Updating system settings" >&3
+info "Updating system settings" >&3
 echo 'vm.swappiness=0' >> /etc/sysctl.d/90-tecart.conf
 
-echo "Installing atd fix" >&3
+info "Installing atd fix" >&3
 set +H
 test -f /etc/rc.local || echo -e "#!/bin/sh\n\nfor i in \`atq | awk '{print \$1}'\`;do atrm \$i;done\n\nexit 0" > /etc/rc.local
 grep 'atrm' /etc/rc.local || sed -i "s/exit 0/for i in \`atq | awk '{print \$1}'\`;do atrm \$i;done\n\nexit 0/" /etc/rc.local
@@ -290,9 +295,9 @@ chmod 1777 /data/tmp
 
 if [ "${install_postgres}" == "true" ]
 then
-    echo "Configuring PostgreSQL" >&3
-    PSQLMEMORY=$(($MEMORY/8))
-    PSQLCONNECTIONS=$(($MEMORY/5))
+    info "Configuring PostgreSQL" >&3
+    PSQLMEMORY=$((MEMORY/8))
+    PSQLCONNECTIONS=$((MEMORY/5))
 
     cat <<PSQLCONF > /etc/postgresql/14/main/conf.d/tecart.conf
 #------------------------------------------------------------------------------
@@ -339,9 +344,9 @@ PSQLCONF
     systemctl restart postgresql
 
 else
-    echo "Configuring MariaDB" >&3
-    MYSQLMEMORY=$(($MEMORY/10*4))
-    MYSQLCONNECTIONS=$(($MEMORY/5))
+    info "Configuring MariaDB" >&3
+    MYSQLMEMORY=$((4*MEMORY/10))
+    MYSQLCONNECTIONS=$((MEMORY/5))
 
     cat <<MYSQLCONF > /etc/mysql/mariadb.conf.d/tecart.cnf
 [client]
@@ -448,7 +453,7 @@ MYSQLCONF
     systemctl restart mariadb
 fi
 
-echo "Creating database" >&3
+info "Creating database" >&3
 
 DBPASS=$(pwgen -s 24)
 echo "$DBPASS" > /root/database-crmpass
@@ -471,17 +476,17 @@ else
     mysql -e "FLUSH PRIVILEGES;"
 fi
 
-echo "Configuring redis" >&3
+info "Configuring redis" >&3
 
-echo "maxmemory $((${MEMORY}/32*4))mb" >> /etc/redis/redis.conf
+echo "maxmemory $((4*MEMORY/32))mb" >> /etc/redis/redis.conf
 echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf
 
 systemctl enable --now redis-server
 
-echo "Generating snakeoil certificate" >&3
+info "Generating snakeoil certificate" >&3
 /usr/sbin/make-ssl-cert generate-default-snakeoil || true
 
-echo "Configuring apache2" >&3
+info "Configuring apache2" >&3
 
 mkdir -p /etc/systemd/system/apache2.service.d/
 cat <<APACHECONF > /etc/systemd/system/apache2.service.d/override.conf
@@ -496,28 +501,28 @@ a2enmod php8.2 || true
 systemctl daemon-reload
 service apache2 restart
 
-echo "Configuring alternatives: php" >&3
+info "Configuring alternatives: php" >&3
 update-alternatives --set php /usr/bin/php8.2 || true
 
-echo "Downloading latest TecArt Software release" >&3
+info "Downloading latest TecArt Software release" >&3
 
 cd /usr/src
 wget -q "https://crmsrv.tecart.de/release/crm_${RELEASE}_latest.tar.gz"
 
-echo "Installing latest release" >&3
+info "Installing latest release" >&3
 
 mkdir -p /var/www/crm
 tar -C /var/www/crm/ --strip-components 1 -pxf "crm_${RELEASE}_latest.tar.gz"
 
-echo "Creating /data directories" >&3
+info "Creating /data directories" >&3
 
 mkdir -p {/var/www/crm/config,/data/crm}
 chown -R www-data:www-data {/var/www/crm,/data/crm}
 chmod -R 0700 {/var/www/crm,/data/crm}
 
-echo "Setting up apache2" >&3
+info "Setting up apache2" >&3
 
-APACHE_WORKERS=$((${MEMORY}/100))
+APACHE_WORKERS=$((MEMORY/100))
 cat <<APACHECONF > /etc/apache2/conf-available/tecart.conf
 Timeout 60
 MaxKeepAliveRequests 0
@@ -606,8 +611,8 @@ a2ensite default-ssl || true
 
 service apache2 restart
 
-echo "Base installation done." >&3
-echo "Configuring TecArt Software" >&3
+info "Base installation done." >&3
+info "Configuring TecArt Software" >&3
 
 DBPASS_B64=$(echo -en "$DBPASS" | base64)
 DBUSER_B64=$(echo -en "tecart" | base64)
@@ -620,6 +625,7 @@ else
 fi
 
 cp /var/www/crm/class/action/setup/config.tpl.php /var/www/crm/config/conf.inc.php
+# shellcheck disable=SC2016
 sed -i -e 's|{$setup_pass}||' \
 	-e 's|{$setup_root}|root|' \
 	-e 's|{$logosrc}|../themes/blue/icons/tlogo.gif|' \
@@ -644,7 +650,7 @@ mkdir "/data/crm/tcucd"
 chown www-data:www-data "/var/www/crm/config/conf.inc.php"
 chown www-data:www-data "/data/crm/tcucd"
 
-echo "Running TecArt Software setup" >&3
+info "Running TecArt Software setup" >&3
 
 cd /var/www/crm/setup
 sudo -u www-data ./setup
@@ -653,11 +659,9 @@ sudo -u www-data ./setup
 
 echo "5.4" > /etc/tecart-installer-version
 
-echo ""
-echo ""
-echo "Installation succeeded"
-echo ""
-echo -e "\tHOST-ID: $(ip l | grep link/ether | awk '{print $2}')"
+echo -e "\n"
+info "Installation succeeded\n"
+echo -e "\n\tHOST-ID: $(ip l | grep link/ether | awk '{print $2}')"
 
 echo "Please specify the passwort for the system's 'root' user:"
 /var/www/crm/tools/pw_reset root
