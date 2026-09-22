@@ -2,11 +2,11 @@
 #
 # Installer for the TecArt Business Software and all of it's dependencies.
 #
-# This program is supposed to be run on a clean Debian 12 Installation. Please
+# This program is supposed to be run on a clean Debian 13 Installation. Please
 # do not run this script on a server that has already been configured for other 
 # software!
 #
-# Copyright (c) by TecArt GmbH, 2023
+# Copyright (c) by TecArt GmbH, 2026
 
 set -euo pipefail
 exec 4>&2
@@ -42,6 +42,7 @@ CRM_VERSION="5.5"
 POSTGRES_VERSION="17"
 RELEASE="v${CRM_VERSION/./}_${PHP_VERSION/./}"
 DEBIAN_DIST="trixie"
+DEBIAN_VERSION=13
 LOG_PATH="/var/log/tecart"
 TECART_CRM_DIR="/var/www/crm"
 mkdir -p "$LOG_PATH"
@@ -164,15 +165,15 @@ else
 fi
 
 if [ "$repo_test" -eq 1 ] && [ "$(lsb_release -is)" == "Debian" ] && \
-    [ "$(lsb_release -rs)" = "12" ]
+    [ "$(lsb_release -rs)" = "${DEBIAN_VERSION}" ]
 then
-    info "Mirror is available and system running on Debian 12"
+    info "Mirror is available and system running on Debian ${DEBIAN_VERSION}"
     if [ "$ACTION" = "check" ]
     then
         exit 0
     fi
 else
-    fatal "Could not confirm that mirros is available and system running on Debian 12"
+    fatal "Could not confirm that mirros is available and system running on Debian ${DEBIAN_VERSION}"
 fi
 
 # /proc/meminfo sometimes reports a little bit less than actually installed, 
