@@ -34,12 +34,16 @@ export PATH=$PATH:/usr/sbin
 ACTION=""
 repo_user=""
 repo_pass=""
+acme_domain=""
 production_repo="true"
 install_icinga="true"
-install_postgres="true"
-RELEASE=v54_82
-DEBIAN_DIST="bookworm"
-LOG_PATH=/var/log/tecart
+PHP_VERSION="8.4"
+CRM_VERSION="5.5"
+POSTGRES_VERSION="17"
+RELEASE="v${CRM_VERSION/./}_${PHP_VERSION/./}"
+DEBIAN_DIST="trixie"
+LOG_PATH="/var/log/tecart"
+TECART_CRM_DIR="/var/www/crm"
 mkdir -p "$LOG_PATH"
 MEMORY=$(($(awk '/^MemTotal:/{print $2}' /proc/meminfo)/1024))
 PROGNAME=$(basename "$0")
@@ -51,7 +55,7 @@ usage() {
     local yll='\e[33m'
     local rst='\e[39m'
     echo -e "$(cat << EOF
-Usage: $PROGNAME [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] [--no-production-repo] [-i] [-p] (check|install)
+Usage: $PROGNAME [-l LOGPATH] [--log-path LOGPATH] [--repo-user REPO-USER] [--repo-pass REPO-PASS] [--no-production-repo] [--acme-domain DOMAIN] [-i] [-p] (check|install)
 
 Options:
 -h, --help                  Display this usage message and exit
@@ -60,15 +64,15 @@ Options:
 -l, --log-path [DIR]        Write logs into given directory
     --no-production-repo    Force the use of untested repositories
 -i, --no-icinga             Skip the installation of Icinga2 and Monitoring Plugins
--m, --mariadb               Use MariaDB instead of Postgres \e[1;33;1;40m(deprecated)\e[0m"
+    --acme-domain DOMAIN    Enable ACME TLS Certificate generation for DOMAIN
 
 Installer for the TecArt Business Software and all of it's dependencies.
 
-${yll}This program is supposed to be run on a clean Debian 12 Installation. Please 
+${yll}This program is supposed to be run on a clean Debian 13 Installation. Please 
 do not run this script on a server that has already been configured for other 
 software!${rst}
 
-Copyright (c) by TecArt GmbH, 2025
+Copyright (c) by TecArt GmbH, 2026
 EOF
 )"
     exit 1
@@ -97,11 +101,10 @@ while [ $# -gt 0 ] ; do
     -i|--no-icinga)
         install_icinga="false"
         ;;
-    -m|--mariadb)
-        warn "Using MariaDB as Database. Please note that this option is deprecated"
-        warn "and will be removed in future versions"
-        install_postgres="false"
-	;;
+    --acme-domain)
+        acme_domain="$2"
+        shift
+	    ;;
     -*)
         usage "Unknown option '$1'"
         ;;
@@ -207,15 +210,15 @@ apt-get install -y resolvconf
 resolvconf -u
 
 cat << EOL > /etc/apt/sources.list
-deb https://${mirror_host}/ftp.de.debian.org/debian/ bookworm main contrib non-free non-free-firmware
-deb https://${mirror_host}/security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
-deb https://${mirror_host}/ftp.de.debian.org/debian/ bookworm-updates main contrib non-free non-free-firmware
+deb https://${mirror_host}/ftp.de.debian.org/debian/ ${DEBIAN_DIST} main contrib non-free non-free-firmware
+deb https://${mirror_host}/security.debian.org/debian-security ${DEBIAN_DIST}-security main contrib non-free non-free-firmware
+deb https://${mirror_host}/ftp.de.debian.org/debian/ ${DEBIAN_DIST}-updates main contrib non-free non-free-firmware
 EOL
 
-cat << TECARTREPO > /etc/apt/sources.list.d/tecart-bookworm.sources
+cat << TECARTREPO > /etc/apt/sources.list.d/tecart.sources
 Types: deb
 URIs: https://${mirror_host}/repo.tecart.de/apt/debian/
-Suites: bookworm
+Suites: ${DEBIAN_DIST}
 Components: main
 Architectures: amd64
 Signed-By: /usr/share/keyrings/tecart-archive-keyring.gpg
@@ -234,39 +237,28 @@ fi
 
 apt-get update
 
-if [ "$install_postgres" == "true" ]
-then
-    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgres-archive-keyring.gpg
-    cat << POSTGRESREPO > /etc/apt/sources.list.d/postgresql.sources
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgres-archive-keyring.gpg
+cat << POSTGRESREPO > /etc/apt/sources.list.d/postgresql.sources
 Types: deb
 URIs: https://${mirror_host}/apt.postgresql.org/pub/repos/apt 
-Suites: bookworm-pgdg
+Suites: ${DEBIAN_DIST}-pgdg
 Components: main
 Architectures: amd64
 Signed-By: /usr/share/keyrings/postgres-archive-keyring.gpg
 POSTGRESREPO
-    apt-get update
-    info "Installing PosgreSQL..." >&3
-    apt-get install -y tecart-essentials-server-5.4-pgsql
-else
-    info "Installing MariaDB..." >&3
-    apt-get install -y tecart-essentials-server-5.4-mariadb
-fi
+
+apt-get update
+info "Installing PosgreSQL..." >&3
+apt-get install -y "tecart-essentials-server-${CRM_VERSION}-pgsql"
 
 info "Installing dependencies. This might take a while..." >&3
 
-apt-get install -y tecart-archive-keyring redis-server tecart-essentials-server-5.4
+apt-get install -y tecart-archive-keyring redis-server "tecart-essentials-server-${CRM_VERSION}"
 
 if [ "${install_icinga}" = "true" ]
 then
     info "Installing Icinga2 and monitoring plugins." >&3
-    apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-monitoring-plugins
-
-    if [ "${install_postgres}" = "true" ]
-    then
-        info "Installing additional postgres monitoring packages." >&3
-        apt-get install -y check-postgres
-    fi
+    apt-get install -y --no-install-recommends icinga2 monitoring-plugins tecart-monitoring-plugins check-postgres
 fi
 
 info "Configuring timezone and locale" >&3
@@ -293,165 +285,47 @@ chmod +x /etc/rc.local
 mkdir -p /data/tmp/
 chmod 1777 /data/tmp
 
-if [ "${install_postgres}" == "true" ]
-then
-    info "Configuring PostgreSQL" >&3
-    PSQLMEMORY=$((MEMORY/8))
-    PSQLCONNECTIONS=$((MEMORY/5))
+info "Configuring PostgreSQL" >&3
+PSQLMEMORY=$((MEMORY/8))
+PSQLCONNECTIONS=$((MEMORY/5))
 
-    cat <<PSQLCONF > /etc/postgresql/14/main/conf.d/tecart.conf
-#------------------------------------------------------------------------------
-# SECURITY
-#------------------------------------------------------------------------------
+cat <<PSQLCONF > "/etc/postgresql/${POSTGRES_VERSION}/main/conf.d/tecart.conf"
 search_path = '"\$user"'
 
-#------------------------------------------------------------------------------
-# CONNECTIONS AND AUTHENTICATION
-#------------------------------------------------------------------------------
 max_connections = ${PSQLCONNECTIONS}
 
-#------------------------------------------------------------------------------
-# RESOURCE USAGE (except WAL)
-#------------------------------------------------------------------------------
 shared_buffers = ${PSQLMEMORY}MB                  # min 128kB
                                         # (change requires restart)
 
-#------------------------------------------------------------------------------
-# STATISTICS
-#------------------------------------------------------------------------------
 track_activities = on
 track_activity_query_size = 1024       # (change requires restart)
 track_counts = on
 track_io_timing = on
-
-#------------------------------------------------------------------------------
-# AUTOVACUUM
-#------------------------------------------------------------------------------
 
 autovacuum = on                        # Enable autovacuum subprocess?  'on'
                                         # requires track_counts to also be on.
 autovacuum_max_workers = 6             # max number of autovacuum subprocesses
                                         # (change requires restart)
 
-#------------------------------------------------------------------------------
-# WRITE-AHEAD LOG
-#------------------------------------------------------------------------------
-max_wal_size = 1GB
-min_wal_size = 80MB
+wal_buffers = 16MB
+wal_compression = zstd
+min_wal_size = 1GB
+max_wal_size = 4GB
+
+# If CPU cores for the whole machine exceeds 8, uncomment the lines below and replace 
+# <CPU cores> with half the available cores and <CPU cores / 2> with a quarter of the
+# available cores in the system
+#max_worker_processes = <CPU cores>
+#max_parallel_workers_per_gather = <CPU cores / 2>
+#max_parallel_workers = <CPU cores>
+#max_parallel_maintenance_workers = <CPU cores / 2>
+
+huge_pages = try
+jit = off
 
 PSQLCONF
 
-    systemctl restart postgresql
-
-else
-    info "Configuring MariaDB" >&3
-    MYSQLMEMORY=$((4*MEMORY/10))
-    MYSQLCONNECTIONS=$((MEMORY/5))
-
-    cat <<MYSQLCONF > /etc/mysql/mariadb.conf.d/tecart.cnf
-[client]
-default-character-set = utf8mb4
- 
-[mysqld]
-tmpdir = /data/tmp/
-character-set-server  = utf8mb4
-collation-server      = utf8mb4_general_ci
-character_set_server   = utf8mb4
-collation_server       = utf8mb4_general_ci
- 
-skip-external-locking
-skip-name-resolve
- 
-default_storage_engine = InnoDB
- 
-key_buffer_size        = 1M
-max_allowed_packet     = 64M
-table_cache            = 1024
-sort_buffer_size       = 4M
-net_buffer_length      = 8K
-read_buffer_size       = 4M
-read_rnd_buffer_size   = 4M
-thread_cache_size      = ${MYSQLCONNECTIONS}      # etwa 1 pro aktiver, 
-                                            # gleichzeitiger Nutzer
- 
-max_connections        = ${MYSQLCONNECTIONS}      # Max. Verbindungen, etwa 1 - 2 je
-                                            # aktiver Nutzer; etwa 5 bei Verwendung
-                                            # persistenter Verbindungen
-open_files_limit       = 16384
-tmp_table_size         = 64M
-max_heap_table_size    = 64M
-table_definition_cache = 20480
- 
-connect_timeout        = 30
-wait_timeout           = 300
-max_connect_errors     = 10000000
- 
-join_buffer_size       = 1M
- 
-# Query cache is disabled by default as the overhead it imposes
-# outweighs any benefits gained by it by far
-query_cache_size       = 0
-query_cache_type       = 0
-
-query_prealloc_size    = 16384
-query_alloc_block_size = 16384
- 
-# INNODB PERFORMANCE
-innodb_buffer_pool_size         = ${MYSQLMEMORY}M        # Maximal ~40% des RAM
-innodb_log_buffer_size          = 8M
-innodb_log_file_size            = 256M      # Nach Änderung dieses Wertes
-                                            # müssen die alten logfiles 
-                                            # gelöscht werden
-innodb_flush_log_at_trx_commit  = 2
-innodb_flush_method             = O_DIRECT
-innodb_file_per_table                       # Erstellt pro Tabelle eine Datei
-                                            # anstatt alles in einer grossen 
-                                            # Datei zu speichern
- 
-long_query_time                = 2
-log_error                      = /var/log/mysql/mysql.err
-slow_query_log                 = 1
-slow_query_log_file            = /var/log/mysql/mysql-slow.log
- 
-old_passwords = false
- 
-log_bin                 = /var/log/mysql/mysql-bin.log
-expire_logs_days        = 3
-max_binlog_size         = 1024M
- 
-low_priority_updates    = 1
-
-performance_schema = ON
-
-[mysqldump]
-quick
-max_allowed_packet = 256M
- 
-[mysql]
-no-auto-rehash
- 
-[isamchk]
-key_buffer = 256M
-sort_buffer_size = 256M
-read_buffer = 2M
-write_buffer = 2M
- 
-[myisamchk]
-key_buffer = 256M
-sort_buffer_size = 256M
-read_buffer = 2M
-write_buffer = 2M
- 
-[mysqlhotcopy]
-interactive-timeout
-
-MYSQLCONF
-
-    mkdir -m 2750 /var/log/mysql
-    chown mysql /var/log/mysql
-
-    systemctl restart mariadb
-fi
+systemctl restart postgresql
 
 info "Creating database" >&3
 
@@ -460,21 +334,12 @@ echo "$DBPASS" > /root/database-crmpass
 echo "Database-User: tecart"
 echo "Database-Password: $DBPASS"
 
-if [ "$install_postgres" == "true" ]
-then
-    PGEXEC="sudo -iu postgres psql "
-    $PGEXEC postgres -c "CREATE ROLE tecart WITH LOGIN PASSWORD '${DBPASS}' VALID UNTIL 'infinity';"
-    $PGEXEC postgres -c "CREATE DATABASE \"tecart\" TEMPLATE template0 OWNER tecart ENCODING 'UTF8' LC_COLLATE 'de_DE.UTF-8' CONNECTION LIMIT -1;"
-    $PGEXEC postgres -c "REVOKE ALL ON DATABASE tecart FROM public;"
-    $PGEXEC tecart   -c "CREATE SCHEMA tecart AUTHORIZATION tecart;"
-    $PGEXEC tecart   -c "ALTER DATABASE tecart SET SEARCH_PATH TO tecart;"
-else
-    mysql -e "CREATE USER 'tecart'@'localhost' IDENTIFIED BY '$DBPASS';"
-    mysql -e "GRANT USAGE ON *.* TO 'tecart'@'localhost' IDENTIFIED BY '$DBPASS' WITH MAX_QUERIES_PER_HOUR 0 MAX_CONNECTIONS_PER_HOUR 0 MAX_UPDATES_PER_HOUR 0 MAX_USER_CONNECTIONS 0;"
-    mysql -e "CREATE DATABASE tecart DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_german2_ci;"
-    mysql -e "GRANT ALL PRIVILEGES ON tecart.* TO 'tecart'@'localhost';"
-    mysql -e "FLUSH PRIVILEGES;"
-fi
+PGEXEC="sudo -iu postgres psql "
+$PGEXEC postgres -c "CREATE ROLE tecart WITH LOGIN PASSWORD '${DBPASS}' VALID UNTIL 'infinity';"
+$PGEXEC postgres -c "CREATE DATABASE \"tecart\" TEMPLATE template0 OWNER tecart ENCODING 'UTF8' LC_COLLATE 'de_DE.UTF-8' CONNECTION LIMIT -1;"
+$PGEXEC postgres -c "REVOKE ALL ON DATABASE tecart FROM public;"
+$PGEXEC tecart   -c "CREATE SCHEMA tecart AUTHORIZATION tecart;"
+$PGEXEC tecart   -c "ALTER DATABASE tecart SET SEARCH_PATH TO tecart;"
 
 info "Configuring redis" >&3
 
@@ -497,12 +362,12 @@ APACHECONF
 sed -i -e 's:ServerSignature On:ServerSignature Off:' \
        -e 's:ServerTokens OS:ServerTokens Prod:' /etc/apache2/conf-enabled/security.conf
 
-a2enmod php8.2 || true
+a2enmod "php${PHP_VERSION}" || true
 systemctl daemon-reload
 service apache2 restart
 
 info "Configuring alternatives: php" >&3
-update-alternatives --set php /usr/bin/php8.2 || true
+update-alternatives --set php "/usr/bin/php${PHP_VERSION}" || true
 
 info "Downloading latest TecArt Software release" >&3
 
@@ -511,14 +376,14 @@ wget -q "https://crmsrv.tecart.de/release/crm_${RELEASE}_latest.tar.gz"
 
 info "Installing latest release" >&3
 
-mkdir -p /var/www/crm
-tar -C /var/www/crm/ --strip-components 1 -pxf "crm_${RELEASE}_latest.tar.gz"
+mkdir -p "${TECART_CRM_DIR}"
+tar -C "${TECART_CRM_DIR}/" --strip-components 1 -pxf "crm_${RELEASE}_latest.tar.gz"
 
 info "Creating /data directories" >&3
 
-mkdir -p {/var/www/crm/config,/data/crm}
-chown -R www-data:www-data {/var/www/crm,/data/crm}
-chmod -R 0700 {/var/www/crm,/data/crm}
+mkdir -p {${TECART_CRM_DIR}/config,/data/crm}
+chown -R www-data:www-data {${TECART_CRM_DIR},/data/crm}
+chmod -R 0700 {${TECART_CRM_DIR},/data/crm}
 
 info "Setting up apache2" >&3
 
@@ -541,37 +406,57 @@ ServerLimit ${APACHE_WORKERS}
 APACHECONF
 
 cat <<APACHECONF > /etc/apache2/conf-available/proto.conf
-Protocols h2 http/1.1
+Protocols h2 http/1.1 acme-tls/1
 
 SSLEngine on
 
 SSLCertificateFile    /etc/ssl/certs/ssl-cert-snakeoil.pem
 SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
 
-SSLProtocol             all -SSLv3 -TLSv1 -TLSv1.1 -TLSv1.2
+https://configurator.tlsref.org/#server=apache&version=2.4.68&config=modern&openssl=3.5.7&hsts&ocsp&guideline=6.0
+SSLProtocol             -all +TLSv1.3
+SSLOpenSSLConfCmd       Curves X25519MLKEM768:X25519:prime256v1:secp384r1
+SSLCipherSuite          TLSv1.3 TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
 SSLHonorCipherOrder     off
 SSLSessionTickets       off
-SSLCompression          off
+
+SSLUseStapling On
+SSLStaplingCache "shmcb:logs/ssl_stapling(32768)"
 
 Header always set Strict-Transport-Security "max-age=63072000"
 Header always set X-Content-Type-Options nosniff
+
+IncludeOptional /etc/apache2/conf-available/proto-local.conf
 APACHECONF
 
 cat <<APACHECONF > /etc/apache2/sites-enabled/000-default.conf
 <VirtualHost *:80>
         ServerAdmin webmaster@crmsrv
         RewriteEngine On
-        RewriteCond %{HTTPS} !=on
-        RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+        RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
+        RewriteRule ^.*$ https://%{HTTP_HOST}%{REQUEST_URI} [R=308,QSA,L]
         LogLevel error
 </VirtualHost>
+APACHECONF
+
+cat <<APACHECONF > /etc/apache2/conf-available/tecart-system.conf
+
+<Directory /var/www/crm/upload>
+    php_value upload_max_filesize 1M
+    php_value post_max_size 1M
+</Directory>
+
+Alias /Microsoft-Server-ActiveSync \${TECART_CRM_DIR}/app/zpush/index.php
+AliasMatch (?i)/Autodiscover/Autodiscover.xml \${TECART_CRM_DIR}/app/zpush/autodiscover/autodiscover.php
+
 APACHECONF
 
 cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
 <IfModule mod_ssl.c>
 <VirtualHost _default_:443>
         ServerAdmin webmaster@crmsrv
-        DocumentRoot /var/www/crm/
+
+        DocumentRoot \${TECART_CRM_DIR}/www_root
 
         <Directory />
             Options -Indexes -FollowSymLinks -MultiViews
@@ -579,21 +464,10 @@ cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
             Require all granted
         </Directory>
 
-        <Directory /var/www/crm/data>
-            Require all denied
-        </Directory>
-
-        <Directory /var/www/crm/upload>
-            php_value upload_max_filesize 1M
-            php_value post_max_size 1M
-        </Directory>
-
-        Alias /Microsoft-Server-ActiveSync /var/www/crm/zpush/index.php
-        AliasMatch (?i)/Autodiscover/Autodiscover.xml /var/www/crm/zpush/autodiscover/autodiscover.php
-
         ErrorLog /var/log/apache2/error.log
         LogLevel error
 
+        Include /etc/apache2/conf-available/tecart-system.conf
         Include /etc/apache2/conf-available/proto.conf
 
         <FilesMatch "\.(cgi|shtml|phtml|php)$">
@@ -617,36 +491,26 @@ info "Configuring TecArt Software" >&3
 DBPASS_B64=$(echo -en "$DBPASS" | base64)
 DBUSER_B64=$(echo -en "tecart" | base64)
 
-if [ "${install_postgres}" == "true" ]
-then
-    DBDRIVER="postgresql"
-else
-    DBDRIVER="mysqli_innodb"
-fi
-
-cp /var/www/crm/class/action/setup/config.tpl.php /var/www/crm/config/conf.inc.php
+cp "${TECART_CRM_DIR}/class/action/setup/config.tpl.php" "${TECART_CRM_DIR}/config/conf.inc.php"
 # shellcheck disable=SC2016
 sed -i -e 's|{$setup_pass}||' \
 	-e 's|{$setup_root}|root|' \
 	-e 's|{$logosrc}|../themes/blue/icons/tlogo.gif|' \
 	-e 's|{$logolink}|https://www.tecart.de/|' \
 	-e 's|{$logotitle}|TecArt GmbH - TecArt-System|' \
-	-e "s|{\$dbdriver}|${DBDRIVER}|" \
+	-e "s|{\$dbdriver}|postgresql|" \
 	-e 's|{$dbname}|tecart|' \
 	-e "s|{\$dbuser}|${DBUSER_B64}|" \
 	-e "s|{\$dbpass}|${DBPASS_B64}|" \
 	-e 's|{$dbhost}|localhost|' \
 	-e 's|{$memcache}|127.0.0.1:6379|' \
 	-e 's|{$memcache_type}|redis|' \
-	-e 's|mem_cache_d|redis|' \
 	-e 's|{$dataroot}|/data/crm|' \
 	-e 's|{$phpcli}|/usr/bin/php|' \
-	-e 's|{$phpini}|/etc/php/8.2/cli/php.ini|' \
+	-e "s|{\$phpini}|/etc/php/${PHP_VERSION}/cli/php.ini|" \
 	-e 's|{$crm_title}|TecArt CRM Professional - |' \
-	-e "s|\$config\['php_path'\]|\$config['data_paths']['tcucd_dir'] = '/data/crm/tcucd';\n\$config['php_path']|" \
 	/var/www/crm/config/conf.inc.php
 
-mkdir "/data/crm/tcucd"
 chown www-data:www-data "/var/www/crm/config/conf.inc.php"
 chown www-data:www-data "/data/crm/tcucd"
 
@@ -657,7 +521,7 @@ sudo -u www-data ./setup
 
 } >"${LOG_PATH}/tecart-install.log" 2> >(grep -Ev '([\.]{10} ){2,}' > "${LOG_PATH}/tecart-install.err")
 
-echo "5.4" > /etc/tecart-installer-version
+echo "${CRM_VERSION}" > /etc/tecart-installer-version
 
 echo -e "\n"
 info "Installation succeeded\n"
