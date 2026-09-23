@@ -440,18 +440,6 @@ cat <<APACHECONF > /etc/apache2/sites-enabled/000-default.conf
 </VirtualHost>
 APACHECONF
 
-cat <<APACHECONF > /etc/apache2/conf-available/tecart-system.conf
-
-<Directory /var/www/crm/upload>
-    php_value upload_max_filesize 1M
-    php_value post_max_size 1M
-</Directory>
-
-Alias /Microsoft-Server-ActiveSync \${TECART_CRM_DIR}/app/zpush/index.php
-AliasMatch (?i)/Autodiscover/Autodiscover.xml \${TECART_CRM_DIR}/app/zpush/autodiscover/autodiscover.php
-
-APACHECONF
-
 cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
 <IfModule mod_ssl.c>
 <VirtualHost _default_:443>
@@ -468,7 +456,7 @@ cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
         ErrorLog /var/log/apache2/error.log
         LogLevel error
 
-        Include /etc/apache2/conf-available/tecart-system.conf
+        Include /etc/apache2/conf-available/tecart-paths.conf
         Include /etc/apache2/conf-available/proto.conf
 
         <FilesMatch "\.(cgi|shtml|phtml|php)$">
