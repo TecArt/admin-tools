@@ -445,19 +445,19 @@ cat <<APACHECONF > /etc/apache2/sites-available/default-ssl.conf
 <VirtualHost _default_:443>
         ServerAdmin webmaster@crmsrv
 
-        DocumentRoot \${TECART_CRM_DIR}/www_root
-
         <Directory />
             Options -Indexes -FollowSymLinks -MultiViews
             AllowOverride None
             Require all granted
         </Directory>
 
-        ErrorLog /var/log/apache2/error.log
-        LogLevel error
-
         Include /etc/apache2/conf-available/tecart-paths.conf
         Include /etc/apache2/conf-available/proto.conf
+
+        DocumentRoot \${TECART_CRM_DIR}/www_root
+
+        ErrorLog /var/log/apache2/error.log
+        LogLevel error
 
         <FilesMatch "\.(cgi|shtml|phtml|php)$">
                 SSLOptions +StdEnvVars
